@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Albion Online Asia マーケット価格比較ツール">
+  <title>Albion Market Tool</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Albion Market Tool ホーム">
+      <span class="brand-mark">A</span>
+      <span>Albion Market Tool</span>
+    </a>
+    <span class="region-pill"><span class="status-dot"></span> ASIA SERVER</span>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">ALBION ONLINE / ASIA</p>
+      <h1>マーケット価格比較</h1>
+      <p class="lead">アイテムを検索して、都市ごとの売値・買値を比較。</p>
+    </section>
+
+    <section class="panel search-panel" aria-labelledby="search-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">ITEM SEARCH</p>
+          <h2 id="search-title">アイテムを探す</h2>
+        </div>
+        <span class="muted small">日本語検索に対応予定</span>
+      </div>
+      <label class="sr-only" for="item-search">アイテム名</label>
+      <div class="search-row">
+        <input id="item-search" type="search" placeholder="例：ロングボウ、ルーン、革…" autocomplete="off">
+        <button id="search-button" type="button">検索</button>
+      </div>
+      <div class="filters">
+        <label>ティア
+          <select id="tier">
+            <option value="all">すべて</option>
+            <option value="4">T4</option><option value="5">T5</option>
+            <option value="6">T6</option><option value="7">T7</option><option value="8">T8</option>
+          </select>
+        </label>
+        <label>エンチャント
+          <select id="enchantment">
+            <option value="all">すべて</option>
+            <option value="0">@0（なし）</option><option value="1">@1</option>
+            <option value="2">@2</option><option value="3">@3</option><option value="4">@4</option>
+          </select>
+        </label>
+        <label>品質
+          <select id="quality">
+            <option value="all">すべて</option>
+            <option value="1">ノーマル</option><option value="2">良質</option>
+            <option value="3">優秀</option><option value="4">秀逸</option><option value="5">名品</option>
+          </select>
+        </label>
+      </div>
+      <p class="helper" id="search-message" aria-live="polite">検索機能は準備中です。現在は画面の土台を作成しています。</p>
+    </section>
+
+    <section class="panel" aria-labelledby="market-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">MARKET OVERVIEW</p>
+          <h2 id="market-title">都市別価格</h2>
+        </div>
+        <button class="secondary-button" id="favorite-button" type="button" disabled>☆ お気に入り</button>
+      </div>
+      <div class="notice" role="status">
+        <span class="notice-icon">i</span>
+        <div><strong>価格データはまだ接続されていません</strong><br>
+          データ取得後、確認できた価格と最終観測時刻を表示します。未取得の価格を0として扱うことはありません。</div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>都市</th><th>売却注文（最安）</th><th>購入注文（最高）</th><th>注文数</th><th>データ状態</th></tr></thead>
+          <tbody id="market-rows">
+            <tr><td>Bridgewatch</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td><span class="state unknown">未取得</span></td></tr>
+            <tr><td>Fort Sterling</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td><span class="state unknown">未取得</span></td></tr>
+            <tr><td>Lymhurst</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td><span class="state unknown">未取得</span></td></tr>
+            <tr><td>Martlock</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td><span class="state unknown">未取得</span></td></tr>
+            <tr><td>Thetford</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td><span class="state unknown">未取得</span></td></tr>
+            <tr><td>Caerleon</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td><span class="state unknown">未取得</span></td></tr>
+            <tr><td>Brecilien</td><td class="empty">—</td><td class="empty">—</td><td class="empty">—</td><td><span class="state unknown">未取得</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="feature-grid">
+      <article class="panel feature-card"><p class="eyebrow">FAVORITES</p><h2>お気に入り</h2><p>よく見る装備や素材をまとめて管理。</p><span class="coming">準備中</span></article>
+      <article class="panel feature-card"><p class="eyebrow">PRICE HISTORY</p><h2>価格履歴</h2><p>24時間・7日・30日の相場変化を確認。</p><span class="coming">準備中</span></article>
+      <article class="panel feature-card"><p class="eyebrow">PRICE ALERTS</p><h2>価格アラート</h2><p>指定価格への到達を通知。</p><span class="coming">準備中</span></article>
+    </section>
+
+    <footer><span>Albion Market Tool</span><span>Community market data · Asia</span></footer>
+  </main>
+</body>
+</html>
