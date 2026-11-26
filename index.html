@@ -94,9 +94,33 @@
       </div>
     </section>
 
+    <section class="panel history-panel" aria-labelledby="history-title">
+      <div class="section-heading history-heading">
+        <div>
+          <p class="eyebrow">PRICE HISTORY</p>
+          <h2 id="history-title">価格履歴</h2>
+          <p class="history-subtitle">売り注文の平均価格の推移</p>
+        </div>
+        <label class="history-city-label">都市
+          <select id="history-city">
+            <option>Bridgewatch</option><option>Fort Sterling</option><option>Lymhurst</option>
+            <option>Martlock</option><option>Thetford</option><option>Caerleon</option>
+            <option>Brecilien</option><option>Black Market</option>
+          </select>
+        </label>
+      </div>
+      <div class="history-toolbar" role="group" aria-label="表示期間">
+        <button type="button" class="history-range active" data-history-range="24h">24時間</button>
+        <button type="button" class="history-range" data-history-range="7d">7日間</button>
+        <button type="button" class="history-range" data-history-range="30d">30日間</button>
+      </div>
+      <div id="history-legend" class="history-legend"></div>
+      <div id="history-chart" class="history-chart history-empty">アイテムを選択すると価格履歴を表示します。</div>
+      <p id="history-message" class="history-message">AODPの履歴データを使用します。未取得の期間は補完しません。</p>
+    </section>
+
     <section class="feature-grid">
       <article class="panel feature-card favorites-card"><p class="eyebrow">FAVORITES</p><h2>お気に入り</h2><p>登録したアイテムをクリックすると、条件を復元して価格を再表示できます。</p><div id="favorite-list" class="favorite-list" aria-live="polite"></div></article>
-      <article class="panel feature-card"><p class="eyebrow">PRICE HISTORY</p><h2>価格履歴</h2><p>24時間・7日・30日の相場変化を確認。</p><span class="coming">準備中</span></article>
       <article class="panel feature-card"><p class="eyebrow">PRICE ALERTS</p><h2>価格アラート</h2><p>指定価格への到達を通知。</p><span class="coming">準備中</span></article>
     </section>
 
