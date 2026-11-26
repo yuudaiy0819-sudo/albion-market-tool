@@ -394,7 +394,12 @@ function renderHistory(payload, range, timeScale) {
     }
   }
   historyChart.append(svg);
-  historyMessage.textContent = "取得元：AODP Asia API。売り注文の平均価格です（実際の取引成立価格ではありません）。";
+  const observedCount = series.reduce((sum, item) => sum + item.points.length, 0);
+  const latestObserved = Math.max(...series.flatMap(item => item.points.map(point => point.time)));
+  const latestLabel = new Date(latestObserved).toLocaleString("ja-JP");
+  historyMessage.textContent = "取得元：AODP Asia API（実データ） · 観測点 " + observedCount
+    + "件 · 最終観測 " + latestLabel
+    + "。売り注文の平均価格です（実際の取引成立価格ではありません）。";
 }
 
 async function loadHistory() {
