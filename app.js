@@ -50,11 +50,17 @@ function showResults(items) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "item-result";
-    button.innerHTML = '<span class="result-name"></span><span class="result-id"></span>';
+    button.innerHTML = '<img class="result-image" alt=""><span class="result-name"></span><span class="result-id"></span>';
+    const image = button.querySelector(".result-image");
+    image.src = "https://render.albiononline.com/v1/item/" + item.UniqueName + ".png?quality=1";
+    image.alt = "";
+    image.loading = "lazy";
+    image.onerror = () => { image.hidden = true; };
     button.querySelector(".result-name").textContent = japaneseName(item);
     button.querySelector(".result-id").textContent = item.UniqueName;
     button.addEventListener("click", () => {
       selectedItem = item;
+      showSelectedItem();
       searchInput.value = japaneseName(item);
       results.replaceChildren();
       searchMessage.textContent = japaneseName(item) + " を選択しました。価格を取得しています…";
@@ -102,6 +108,29 @@ function selectedItemId() {
   return "T" + tier + "_" + match[1].replace(/@\d+$/, "") + (enchant === "0" ? "" : "@" + enchant);
 }
 
+function showSelectedItem() {
+  const container = document.querySelector("#selected-item-card");
+  if (!container || !selectedItem) return;
+  const itemId = selectedItemId();
+  const quality = qualitySelect.value === "all" ? "1" : qualitySelect.value;
+  const imageUrl = "https://render.albiononline.com/v1/item/" + itemId + ".png?quality=" + quality;
+  container.replaceChildren();
+  const image = document.createElement("img");
+  image.className = "selected-item-image";
+  image.src = imageUrl;
+  image.alt = japaneseName(selectedItem);
+  image.onerror = () => { image.hidden = true; };
+  const details = document.createElement("div");
+  details.className = "selected-item-details";
+  const name = document.createElement("strong");
+  name.textContent = japaneseName(selectedItem);
+  const id = document.createElement("span");
+  id.textContent = itemId;
+  details.append(name, id);
+  container.append(image, details);
+  container.hidden = false;
+}
+
 function formatSilver(value) {
   if (!Number.isFinite(value) || value <= 0) return "—";
   return Math.round(value).toLocaleString("en-US") + " s";
@@ -124,6 +153,7 @@ function freshness(date) {
 async function loadPrices() {
   if (!selectedItem) return;
   const itemId = selectedItemId();
+  showSelectedItem();
   const qualities = qualitySelect.value === "all" ? "1,2,3,4,5" : qualitySelect.value;
   rows.replaceChildren();
   const loading = document.createElement("tr");
