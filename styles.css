@@ -21,3 +21,27 @@
 .favorite-load span{font-size:12px;overflow-wrap:anywhere}
 .favorite-remove{border:1px solid #e3e6ea;border-radius:7px;background:#fff;color:#7b8490;padding:7px 10px;font:inherit;font-size:11px;cursor:pointer}
 .favorite-remove:hover{background:#f7f8fa}
+
+/* Price history */
+.history-panel{margin-top:18px}
+.history-heading{align-items:center}
+.history-subtitle{margin:7px 0 0;color:#7a838e;font-size:12px}
+.history-city-label{display:flex;align-items:center;gap:9px;color:#606a76;font-size:12px}
+.history-city-label select{height:36px;border:1px solid #e1e4e8;border-radius:7px;background:#fff;padding:0 28px 0 10px;color:#242a32;font:inherit}
+.history-toolbar{display:flex;gap:7px;margin:0 0 14px}
+.history-range{border:1px solid #e1e4e8;border-radius:8px;background:#fff;color:#69727e;padding:8px 14px;font:inherit;font-size:12px;cursor:pointer}
+.history-range.active{background:#20252d;border-color:#20252d;color:#fff}
+.history-legend{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 10px}
+.history-legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#69727e}
+.history-legend-item i{display:block;width:9px;height:9px;border-radius:50%;background:var(--series-color)}
+.history-chart{width:100%;min-height:210px;overflow:hidden}
+.history-chart svg{display:block;width:100%;height:auto;min-height:210px}
+.history-empty{display:grid;place-items:center;min-height:210px;padding:25px;text-align:center;color:#89919b;background:#fafbfc;border:1px dashed #e1e4e8;border-radius:10px;font-size:12px;line-height:1.7}
+.history-gridline{stroke:#e9edf1;stroke-width:1}
+.history-gridline.vertical{stroke-dasharray:3 5}
+.history-axis-label{fill:#89919b;font-size:11px}
+.history-line{fill:none;stroke:var(--series-color);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.history-point{fill:var(--series-color);stroke:#fff;stroke-width:1.5}
+.quality-1{--series-color:#64748b}.quality-2{--series-color:#0f9f8f}.quality-3{--series-color:#d18a22}.quality-4{--series-color:#7c65c1}.quality-5{--series-color:#d15d76}
+.history-message{margin:10px 0 0;color:#89919b;font-size:11px;line-height:1.6}
+@media(max-width:650px){.history-heading{align-items:flex-start;flex-direction:column}.history-city-label{width:100%;justify-content:space-between}.history-city-label select{flex:1;max-width:190px}.history-chart svg{min-height:180px}.history-toolbar{gap:5px}.history-range{flex:1;padding:8px 5px}}
