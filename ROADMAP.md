@@ -30,7 +30,7 @@ Albion Online **Asia (East)** market comparison tool.
 2. **Live market view:** Asia AODP API integration and current-price comparison with freshness indicators.
 3. **Order detail:** order-book depth and quantity display where available.
 4. **Favorites:** save items, qualities, and filter combinations.
-5. **History:** persist observations and render 24h / 7d / 30d charts with gaps preserved.
+5. **History:** use AODP sell-order history for 24h / 7d / 30d charts; later persist local observations for deeper long-term analysis.
 6. **Price watch:** configurable thresholds and notification delivery.
 7. **Deployment:** free prototype first; introduce always-on infrastructure only when required.
 
@@ -46,5 +46,6 @@ AODP data is community-contributed. The client uploads market data that players 
 - [ ] Search and filters
 - [ ] Live comparison
 - [ ] Favorites and watch rules
-- [ ] History storage and charts
+- [x] AODP historical sell-order average chart (24h / 7d / 30d)
+- [ ] Long-term local history storage and charts
 - [ ] Notifications
