@@ -9,6 +9,9 @@ const rows = document.querySelector("#market-rows");
 const tierSelect = document.querySelector("#tier");
 const enchantSelect = document.querySelector("#enchantment");
 const qualitySelect = document.querySelector("#quality");
+const favoriteButton = document.querySelector("#favorite-button");
+const favoriteList = document.querySelector("#favorite-list");
+const FAVORITES_KEY = "albion-market-tool-favorites-v1";
 let catalog = [];
 let selectedItem = null;
 let catalogPromise = null;
@@ -108,6 +111,123 @@ function selectedItemId() {
   return "T" + tier + "_" + match[1].replace(/@\d+$/, "") + (enchant === "0" ? "" : "@" + enchant);
 }
 
+function readFavorites() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveFavorites(items) {
+  try {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(items));
+    return true;
+  } catch (error) {
+    searchMessage.textContent = "お気に入りを保存できませんでした。ブラウザの保存設定を確認してください。";
+    return false;
+  }
+}
+
+function currentFavorite() {
+  if (!selectedItem) return null;
+  return {
+    catalogId: selectedItem.UniqueName,
+    itemId: selectedItemId(),
+    name: japaneseName(selectedItem),
+    tier: tierSelect.value,
+    enchant: enchantSelect.value,
+    quality: qualitySelect.value
+  };
+}
+
+function isFavorite(item) {
+  return readFavorites().some((saved) => saved.itemId === item.itemId);
+}
+
+function updateFavoriteButton() {
+  if (!favoriteButton) return;
+  const item = currentFavorite();
+  favoriteButton.disabled = !item;
+  favoriteButton.textContent = item && isFavorite(item) ? "★ お気に入り済み" : "☆ お気に入りに追加";
+}
+
+function renderFavorites() {
+  if (!favoriteList) return;
+  favoriteList.replaceChildren();
+  const favorites = readFavorites();
+  if (!favorites.length) {
+    const empty = document.createElement("p");
+    empty.className = "favorites-empty";
+    empty.textContent = "まだ登録されていません。アイテムを選んで「お気に入りに追加」を押してください。";
+    favoriteList.append(empty);
+    return;
+  }
+  for (const saved of favorites) {
+    const itemRow = document.createElement("div");
+    itemRow.className = "favorite-item";
+    const loadButton = document.createElement("button");
+    loadButton.type = "button";
+    loadButton.className = "favorite-load";
+    const image = document.createElement("img");
+    image.src = "https://render.albiononline.com/v1/item/" + saved.itemId + ".png?quality=" + (saved.quality === "all" ? "1" : saved.quality);
+    image.alt = "";
+    image.loading = "lazy";
+    image.onerror = () => { image.hidden = true; };
+    const label = document.createElement("span");
+    label.textContent = saved.name + " · " + saved.itemId + " · 品質 " + saved.quality;
+    loadButton.append(image, label);
+    loadButton.addEventListener("click", async () => {
+      try {
+        const items = await loadCatalog();
+        const found = items.find((entry) => entry.UniqueName === saved.catalogId);
+        if (!found) {
+          searchMessage.textContent = "このアイテムを一覧から読み込めませんでした。";
+          return;
+        }
+        selectedItem = found;
+        tierSelect.value = saved.tier;
+        enchantSelect.value = saved.enchant;
+        qualitySelect.value = saved.quality;
+        searchInput.value = saved.name;
+        showSelectedItem();
+        updateFavoriteButton();
+        searchMessage.textContent = saved.name + " をお気に入りから読み込みました。";
+        loadPrices();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (error) {
+        searchMessage.textContent = "アイテム一覧を読み込めませんでした。";
+      }
+    });
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "favorite-remove";
+    removeButton.textContent = "削除";
+    removeButton.setAttribute("aria-label", saved.name + "をお気に入りから削除");
+    removeButton.addEventListener("click", () => {
+      saveFavorites(readFavorites().filter((entry) => entry.itemId !== saved.itemId));
+      renderFavorites();
+      updateFavoriteButton();
+    });
+    itemRow.append(loadButton, removeButton);
+    favoriteList.append(itemRow);
+  }
+}
+
+function toggleFavorite() {
+  const item = currentFavorite();
+  if (!item) return;
+  const favorites = readFavorites();
+  const exists = favorites.some((saved) => saved.itemId === item.itemId);
+  const next = exists ? favorites.filter((saved) => saved.itemId !== item.itemId) : [item, ...favorites];
+  if (saveFavorites(next)) {
+    renderFavorites();
+    updateFavoriteButton();
+    searchMessage.textContent = exists ? "お気に入りから削除しました。" : "お気に入りに登録しました！";
+  }
+}
+
 function showSelectedItem() {
   const container = document.querySelector("#selected-item-card");
   if (!container || !selectedItem) return;
@@ -129,6 +249,7 @@ function showSelectedItem() {
   details.append(name, id);
   container.append(image, details);
   container.hidden = false;
+  updateFavoriteButton();
 }
 
 function formatSilver(value) {
@@ -201,6 +322,14 @@ searchButton.addEventListener("click", searchItems);
 searchInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") searchItems();
 });
+favoriteButton.addEventListener("click", toggleFavorite);
 for (const control of [tierSelect, enchantSelect, qualitySelect]) {
-  control.addEventListener("change", () => { if (selectedItem) loadPrices(); });
+  control.addEventListener("change", () => {
+    if (selectedItem) {
+      showSelectedItem();
+      loadPrices();
+    }
+  });
 }
+renderFavorites();
+updateFavoriteButton();
