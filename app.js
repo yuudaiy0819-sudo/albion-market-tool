@@ -11,6 +11,13 @@ const enchantSelect = document.querySelector("#enchantment");
 const qualitySelect = document.querySelector("#quality");
 const favoriteButton = document.querySelector("#favorite-button");
 const favoriteList = document.querySelector("#favorite-list");
+const historyCity = document.querySelector("#history-city");
+const historyChart = document.querySelector("#history-chart");
+const historyLegend = document.querySelector("#history-legend");
+const historyMessage = document.querySelector("#history-message");
+const historyRangeButtons = document.querySelectorAll("[data-history-range]");
+let historyRange = "24h";
+let historyRequestId = 0;
 const FAVORITES_KEY = "albion-market-tool-favorites-v1";
 let catalog = [];
 let selectedItem = null;
@@ -68,6 +75,7 @@ function showResults(items) {
       results.replaceChildren();
       searchMessage.textContent = japaneseName(item) + " を選択しました。価格を取得しています…";
       loadPrices();
+      loadHistory();
     });
     results.append(button);
   }
@@ -195,6 +203,7 @@ function renderFavorites() {
         updateFavoriteButton();
         searchMessage.textContent = saved.name + " をお気に入りから読み込みました。";
         loadPrices();
+        loadHistory();
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (error) {
         searchMessage.textContent = "アイテム一覧を読み込めませんでした。";
@@ -250,6 +259,178 @@ function showSelectedItem() {
   container.append(image, details);
   container.hidden = false;
   updateFavoriteButton();
+}
+
+function localDateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
+}
+
+function parseHistoryTimestamp(value) {
+  if (typeof value === "number") {
+    if (value > 600000000000000000) return new Date((value - 621355968000000000) / 10000);
+    if (value > 1000000000000) return new Date(value);
+    return new Date(value * 1000);
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function renderHistory(payload, range, timeScale) {
+  historyChart.replaceChildren();
+  historyLegend.replaceChildren();
+  const records = Array.isArray(payload) ? payload : (payload.data || payload.series || []);
+  const city = historyCity.value;
+  const byQuality = new Map();
+
+  for (const record of records) {
+    const recordCity = record.location || record.city || record.Location;
+    if (recordCity && recordCity.toLowerCase() !== city.toLowerCase()) continue;
+    const quality = String(record.quality || record.Quality || "1");
+    const points = Array.isArray(record.data) ? record.data : (record.Data || []);
+    if (!byQuality.has(quality)) byQuality.set(quality, []);
+    for (const point of points) {
+      const date = parseHistoryTimestamp(point.timestamp ?? point.Timestamp);
+      const price = Number(point.avg_price ?? point.AveragePrice);
+      if (!date || !Number.isFinite(price) || price <= 0) continue;
+      byQuality.get(quality).push({
+        time: date.getTime(),
+        price,
+        count: Number(point.item_count ?? point.ItemCount ?? 0)
+      });
+    }
+  }
+
+  const now = Date.now();
+  const days = range === "24h" ? 1 : range === "7d" ? 7 : 30;
+  const minTime = now - days * 86400000;
+  const series = [...byQuality.entries()].map(([quality, points]) => ({
+    quality,
+    points: points.filter(point => point.time >= minTime && point.time <= now + 3600000)
+      .sort((a,b) => a.time - b.time)
+  })).filter(item => item.points.length);
+
+  if (!series.length) {
+    historyChart.textContent = "この都市・品質では、期間内の履歴データが見つかりませんでした。";
+    historyChart.className = "history-chart history-empty";
+    historyMessage.textContent = "未観測の期間があります。データがないことは、取引や注文がなかったことを意味しません。";
+    return;
+  }
+
+  historyChart.className = "history-chart";
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", "0 0 900 330");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "売り注文の平均価格の履歴グラフ");
+  const width = 900, height = 330, left = 78, right = 22, top = 22, bottom = 48;
+  const plotW = width - left - right, plotH = height - top - bottom;
+  const allPoints = series.flatMap(item => item.points);
+  let minPrice = Math.min(...allPoints.map(point => point.price));
+  let maxPrice = Math.max(...allPoints.map(point => point.price));
+  if (minPrice === maxPrice) { minPrice = Math.max(0, minPrice * 0.9); maxPrice *= 1.1; }
+  else { const pad = (maxPrice - minPrice) * 0.12; minPrice = Math.max(0, minPrice - pad); maxPrice += pad; }
+  const x = time => left + ((time - minTime) / (now - minTime)) * plotW;
+  const y = price => top + ((maxPrice - price) / (maxPrice - minPrice)) * plotH;
+  const make = (tag, attrs, parent=svg) => {
+    const node = document.createElementNS(svgNS, tag);
+    for (const [key,value] of Object.entries(attrs)) node.setAttribute(key, value);
+    parent.append(node);
+    return node;
+  };
+
+  for (let i=0;i<=4;i++) {
+    const value = minPrice + (maxPrice-minPrice) * i / 4;
+    const yy = y(value);
+    make("line",{x1:left,y1:yy,x2:width-right,y2:yy,class:"history-gridline"});
+    const label = make("text",{x:left-12,y:yy+4,"text-anchor":"end",class:"history-axis-label"});
+    label.textContent = Math.round(value).toLocaleString("en-US");
+  }
+  const dateFormat = range === "24h"
+    ? new Intl.DateTimeFormat("ja-JP",{hour:"2-digit",minute:"2-digit"})
+    : new Intl.DateTimeFormat("ja-JP",{month:"numeric",day:"numeric"});
+  for (let i=0;i<=4;i++) {
+    const time = minTime + (now-minTime)*i/4;
+    const xx = x(time);
+    make("line",{x1:xx,y1:top,x2:xx,y2:height-bottom,class:"history-gridline vertical"});
+    const label = make("text",{x:xx,y:height-17,"text-anchor":"middle",class:"history-axis-label"});
+    label.textContent = dateFormat.format(new Date(time));
+  }
+
+  const qualityNames = {"1":"ノーマル","2":"良好","3":"傑出","4":"エクセレント","5":"最高傑作"};
+  for (const item of series) {
+    const legend = document.createElement("span");
+    legend.className = "history-legend-item quality-" + item.quality;
+    const dot = document.createElement("i");
+    const textNode = document.createElement("span");
+    textNode.textContent = qualityNames[item.quality] || ("品質 " + item.quality);
+    legend.append(dot,textNode);
+    historyLegend.append(legend);
+
+    const maxGap = timeScale * 3600000 * 2.1;
+    let segment = [];
+    const segments = [];
+    for (const point of item.points) {
+      if (segment.length && point.time - segment[segment.length-1].time > maxGap) {
+        segments.push(segment);
+        segment = [];
+      }
+      segment.push(point);
+    }
+    if (segment.length) segments.push(segment);
+    for (const group of segments) {
+      if (group.length > 1) {
+        const d = group.map((point,index) => (index ? "L" : "M") + x(point.time).toFixed(1) + "," + y(point.price).toFixed(1)).join(" ");
+        make("path",{d,class:"history-line quality-" + item.quality});
+      }
+      for (const point of group) {
+        const circle = make("circle",{cx:x(point.time),cy:y(point.price),r:3.5,class:"history-point quality-" + item.quality});
+        const title = document.createElementNS(svgNS,"title");
+        title.textContent = new Date(point.time).toLocaleString("ja-JP") + " · " + Math.round(point.price).toLocaleString("en-US") + " s · 個数 " + (point.count || "不明");
+        circle.append(title);
+      }
+    }
+  }
+  historyChart.append(svg);
+  historyMessage.textContent = "取得元：AODP Asia API。売り注文の平均価格です（実際の取引成立価格ではありません）。";
+}
+
+async function loadHistory() {
+  if (!selectedItem || !historyChart) return;
+  const requestId = ++historyRequestId;
+  const rangeSettings = {
+    "24h": {days:1, scale:1},
+    "7d": {days:7, scale:6},
+    "30d": {days:30, scale:24}
+  };
+  const settings = rangeSettings[historyRange];
+  const end = new Date();
+  const start = new Date(end.getTime() - settings.days * 86400000);
+  const qualities = qualitySelect.value === "all" ? "1,2,3,4,5" : qualitySelect.value;
+  const itemId = selectedItemId();
+  historyChart.className = "history-chart history-empty";
+  historyChart.textContent = "価格履歴を取得しています…";
+  historyLegend.replaceChildren();
+  historyMessage.textContent = itemId + " · " + historyCity.value + " · AODP履歴データ";
+  try {
+    const url = "https://east.albion-online-data.com/api/v2/stats/history/"
+      + encodeURIComponent(itemId) + ".json?locations=" + encodeURIComponent(historyCity.value)
+      + "&qualities=" + encodeURIComponent(qualities)
+      + "&date=" + localDateString(start) + "&end_date=" + localDateString(end)
+      + "&time-scale=" + settings.scale;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("履歴APIが応答しませんでした（HTTP " + response.status + "）。");
+    const payload = await response.json();
+    if (requestId !== historyRequestId) return;
+    renderHistory(payload, historyRange, settings.scale);
+  } catch (error) {
+    if (requestId !== historyRequestId) return;
+    historyChart.className = "history-chart history-empty";
+    historyChart.textContent = error.message + " 少し時間をおいて再度お試しください。";
+    historyMessage.textContent = "価格履歴を取得できませんでした。";
+  }
 }
 
 function formatSilver(value) {
@@ -328,7 +509,16 @@ for (const control of [tierSelect, enchantSelect, qualitySelect]) {
     if (selectedItem) {
       showSelectedItem();
       loadPrices();
+      loadHistory();
     }
+  });
+}
+historyCity.addEventListener("change", loadHistory);
+for (const button of historyRangeButtons) {
+  button.addEventListener("click", () => {
+    historyRange = button.dataset.historyRange;
+    historyRangeButtons.forEach(item => item.classList.toggle("active", item === button));
+    loadHistory();
   });
 }
 renderFavorites();
