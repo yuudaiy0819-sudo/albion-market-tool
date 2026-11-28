@@ -339,11 +339,11 @@ export default {
         const sellPrice = buyPrice + spread;
         const itemName = rule.item_name || rule.item_id;
         const message =
-          `🧪 **【テスト】Albion価格差アラート**\\n` +
-          `アイテム：${itemName}（品質 ${rule.quality}）\\n` +
-          `購入：${rule.buy_city} / ${buyPrice.toLocaleString()}\\n` +
-          `売却：${rule.sell_city} / ${sellPrice.toLocaleString()}\\n` +
-          `価格差：**${spread.toLocaleString()}**（設定値：${threshold.toLocaleString()}以上）\\n` +
+          `🧪 **【テスト】Albion価格差アラート**\n` +
+          `アイテム：${itemName}（品質 ${rule.quality}）\n` +
+          `購入：${rule.buy_city} / ${buyPrice.toLocaleString()}\n` +
+          `売却：${rule.sell_city} / ${sellPrice.toLocaleString()}\n` +
+          `価格差：**${spread.toLocaleString()}**（設定値：${threshold.toLocaleString()}以上）\n` +
           `※これは通知テスト用の架空価格です。実際の市場データ・監視履歴には保存していません。`;
         await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
         return json({ ok: true, message: "Synthetic spread test notification sent", spread });
