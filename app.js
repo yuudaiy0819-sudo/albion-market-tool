@@ -1485,6 +1485,37 @@ monitorPollButton.addEventListener("click", async () => {
   }
 });
 
+
+const menuToggle = document.querySelector("#menu-toggle");
+const siteMenu = document.querySelector("#site-menu");
+const menuClose = document.querySelector("#menu-close");
+const menuBackdrop = document.querySelector("#menu-backdrop");
+
+function setSiteMenuOpen(open) {
+  if (!menuToggle || !siteMenu || !menuBackdrop) return;
+  siteMenu.hidden = !open;
+  menuBackdrop.hidden = !open;
+  menuToggle.setAttribute("aria-expanded", String(open));
+  menuToggle.setAttribute("aria-label", open ? "目次を閉じる" : "目次を開く");
+  document.body.classList.toggle("menu-open", open);
+}
+menuToggle?.addEventListener("click", () => setSiteMenuOpen(siteMenu.hidden));
+menuClose?.addEventListener("click", () => setSiteMenuOpen(false));
+menuBackdrop?.addEventListener("click", () => setSiteMenuOpen(false));
+siteMenu?.querySelectorAll('a[href^="#"]').forEach(link => {
+  link.addEventListener("click", event => {
+    const target = document.querySelector(link.getAttribute("href"));
+    if (!target) return;
+    event.preventDefault();
+    setSiteMenuOpen(false);
+    if (target.matches("details") && !target.open) target.open = true;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && siteMenu && !siteMenu.hidden) setSiteMenuOpen(false);
+});
+
 setMonitorConnected(false);
 updateMonitorItemDisplay();
 
