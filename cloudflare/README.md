@@ -67,11 +67,11 @@ The example is illustrative only; choose a real item and city pair before creati
 - The Worker polls only items that have enabled watch rules; it does not scan the entire item catalogue.
 
 
-## Market-wide data collection (next phase)
+## Market-wide data collection pilot
 
-The current Worker polls enabled watch rules; it does not continuously collect the whole market. The planned wider-coverage architecture is documented in [MARKET_DATA_ROADMAP.md](./MARKET_DATA_ROADMAP.md).
+The current Worker still polls enabled watch rules for the existing alert system. A separate Asia NATS collector and authenticated ingestion path are now present in the repository, but are not deployed or running yet. See [MARKET_DATA_ROADMAP.md](./MARKET_DATA_ROADMAP.md) for status, architecture, and rollout gates.
 
-AODP's public Asia NATS feed can provide deduplicated market-order and market-history observations, but it is not a complete completed-trade ledger. Continuous collection requires a separate always-on subscriber; the Cloudflare Worker remains the HTTPS API and scheduled monitoring layer. No external hosting service or paid resource is enabled by this documentation change.
+AODP's public Asia NATS feed provides deduplicated market-order and market-history observations, not a complete completed-trade ledger. The collector must run on an always-on host with persistent storage. No external hosting service or paid resource has been enabled.
 
 ## Historical alert context
 
