@@ -325,6 +325,34 @@ export default {
       }
     }
 
+    if (request.method === "POST" && url.pathname === "/admin/test-spread") {
+      if (!env.DISCORD_WEBHOOK_URL) {
+        return json({ error: "DISCORD_WEBHOOK_URL is not configured" }, 503);
+      }
+      try {
+        const rules = await getEnabledRules(env.DB);
+        if (!rules.length) return json({ error: "先に監視ルールを1件登録してください。" }, 400);
+        const rule = rules[0];
+        const threshold = Number(rule.min_spread || 0);
+        const buyPrice = 10000;
+        const spread = Math.max(1500, threshold + 500);
+        const sellPrice = buyPrice + spread;
+        const itemName = rule.item_name || rule.item_id;
+        const message =
+          `🧪 **【テスト】Albion価格差アラート**\\n` +
+          `アイテム：${itemName}（品質 ${rule.quality}）\\n` +
+          `購入：${rule.buy_city} / ${buyPrice.toLocaleString()}\\n` +
+          `売却：${rule.sell_city} / ${sellPrice.toLocaleString()}\\n` +
+          `価格差：**${spread.toLocaleString()}**（設定値：${threshold.toLocaleString()}以上）\\n` +
+          `※これは通知テスト用の架空価格です。実際の市場データ・監視履歴には保存していません。`;
+        await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
+        return json({ ok: true, message: "Synthetic spread test notification sent", spread });
+      } catch (error) {
+        console.error("Synthetic spread test failed", error);
+        return json({ error: "テスト通知を送信できませんでした。", detail: error.message }, 502);
+      }
+    }
+
     if (request.method === "GET" && url.pathname === "/admin/watch-rules") {
       const rules = await env.DB.prepare(
         "SELECT * FROM watch_rules ORDER BY created_at DESC"
