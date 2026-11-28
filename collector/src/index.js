@@ -112,7 +112,9 @@ async function main() {
   })().catch(error => console.error("NATS status stream ended", error));
 
   for (const subject of SUBJECTS) {
-    const sub = nc.subscribe(subject, { max: 20000 });
+    // Do not set NATS subscription option `max`: it auto-unsubscribes after that many messages.
+    // The collector must stay subscribed continuously; local queue limits provide backpressure.
+    const sub = nc.subscribe(subject);
     (async () => {
       for await (const message of sub) {
         if (stopping) break;
