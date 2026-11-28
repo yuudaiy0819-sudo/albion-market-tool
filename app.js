@@ -914,7 +914,7 @@ if (rememberedMonitorToken) {
   monitorRememberInput.checked = true;
   monitorAdminToken = rememberedMonitorToken;
   setMonitorConnected(false, "loading");
-  refreshMonitorRules().then(() => {
+  refreshMonitorRules().then(async () => {
     setMonitorConnected(true);
     monitorMessage.textContent = "保存済みのログイン状態で接続しました。";
     await refreshAlertHistory();
