@@ -458,8 +458,8 @@ async function pollMarketData(env) {
               `価格差：${spread.toLocaleString()}\n` +
               `販売税（${salesTaxRate}%）：-${salesTax.toLocaleString()}\n` +
               `**税引後利益：${netProfit.toLocaleString()} シルバー（${profitRate.toFixed(2)}%）**\n` +
-              `過去24時間との比較：信頼度 ${confidence.label}\\n` +
-              `${confidence.detail}\\n` +
+              `過去24時間との比較：信頼度 ${confidence.label}\n` +
+              `${confidence.detail}\n` +
               `※既存注文への即時購入・即時売却を想定。輸送コスト・価格変動は含みません。\n` +
               `（価格差の設定値：${threshold.toLocaleString()}以上）`;
             await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
