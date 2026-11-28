@@ -210,6 +210,17 @@ async function pollMarketData(env) {
           const sellPrice = Number(sellRow.buy_price_max);
           const spread = sellPrice - buyPrice;
           const threshold = Number(rule.min_spread || 0);
+          // Instant buy from an existing sell order has no setup fee.
+          // Instant sell into an existing buy order pays sales tax only.
+          // Default is 4% for Premium; override with MARKET_SALES_TAX_RATE if needed.
+          const configuredTaxRate = Number(env.MARKET_SALES_TAX_RATE ?? 4);
+          const salesTaxRate = Number.isFinite(configuredTaxRate) &&
+            configuredTaxRate >= 0 && configuredTaxRate <= 100
+            ? configuredTaxRate
+            : 4;
+          const salesTax = Math.round(sellPrice * salesTaxRate / 100);
+          const netProfit = sellPrice - salesTax - buyPrice;
+          const profitRate = buyPrice > 0 ? (netProfit / buyPrice) * 100 : 0;
 
           if (spread >= threshold && !(await isCoolingDown("spread"))) {
             const message =
@@ -217,8 +228,11 @@ async function pollMarketData(env) {
               `アイテム：${itemName}（${qualityLabel}）\n` +
               `購入：${rule.buy_city} / ${buyPrice.toLocaleString()}\n` +
               `売却：${rule.sell_city} / ${sellPrice.toLocaleString()}\n` +
-              `価格差：**${spread.toLocaleString()}**（設定値：${threshold.toLocaleString()}以上）\n` +
-              `※税・手数料を差し引く前の注文価格差です。`;
+              `価格差：${spread.toLocaleString()}\n` +
+              `販売税（${salesTaxRate}%）：-${salesTax.toLocaleString()}\n` +
+              `**税引後利益：${netProfit.toLocaleString()} シルバー（${profitRate.toFixed(2)}%）**\n` +
+              `※既存注文への即時購入・即時売却を想定。輸送コスト・価格変動は含みません。\n` +
+              `（価格差の設定値：${threshold.toLocaleString()}以上）`;
             await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
             await env.DB.prepare(
               `INSERT INTO alert_events
