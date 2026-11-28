@@ -384,6 +384,7 @@ const FAVORITE_PRICE_HISTORY_KEY = "albion-market-tool-favorite-price-history-v1
 const favoriteDashboardRows = document.querySelector("#favorite-dashboard-rows");
 const favoriteDashboardStatus = document.querySelector("#favorite-dashboard-status");
 const favoriteDashboardRefresh = document.querySelector("#favorite-dashboard-refresh");
+const favoriteDashboardSort = document.querySelector("#favorite-dashboard-sort");
 
 function readFavoritePriceHistory() {
   try {
@@ -473,6 +474,24 @@ function setDashboardPriceCell(cell, price, city, quality) {
   cell.append(amount, detail);
 }
 
+function sortFavoriteDashboardRows() {
+  if (!favoriteDashboardRows) return;
+  const mode = favoriteDashboardSort ? favoriteDashboardSort.value : "default";
+  const rows = Array.from(favoriteDashboardRows.querySelectorAll("tr"));
+  rows.sort((a, b) => {
+    if (mode === "default") return Number(a.dataset.favoriteIndex || 0) - Number(b.dataset.favoriteIndex || 0);
+    const key = mode === "sell" ? "sell" : mode === "buy" ? "buy" : "spread";
+    const av = Number(a.dataset[key]);
+    const bv = Number(b.dataset[key]);
+    const aValid = Number.isFinite(av);
+    const bValid = Number.isFinite(bv);
+    if (aValid !== bValid) return aValid ? -1 : 1;
+    if (!aValid) return Number(a.dataset.favoriteIndex || 0) - Number(b.dataset.favoriteIndex || 0);
+    return mode === "sell" ? av - bv : bv - av;
+  });
+  rows.forEach(row => favoriteDashboardRows.append(row));
+}
+
 async function refreshFavoriteDashboard() {
   if (!favoriteDashboardRows || !favoriteDashboardStatus) return;
   const favorites = readFavorites();
@@ -487,6 +506,7 @@ async function refreshFavoriteDashboard() {
   favoriteDashboardStatus.textContent = favorites.length + "件のお気に入り価格を取得しています…";
   const history = readFavoritePriceHistory();
   const rowsByIndex = favorites.map((saved, index) => renderFavoriteDashboardRow(saved, index));
+  rowsByIndex.forEach((row, index) => { row.dataset.favoriteIndex = String(index); });
   let nextIndex = 0;
   let completed = 0;
   const worker = async () => {
@@ -511,6 +531,9 @@ async function refreshFavoriteDashboard() {
         const bestSell = sells[0] || null;
         const bestBuy = buys[0] || null;
         const spread = bestSell && bestBuy ? bestBuy.value-bestSell.value : null;
+        tr.dataset.sell = bestSell ? String(bestSell.value) : "";
+        tr.dataset.buy = bestBuy ? String(bestBuy.value) : "";
+        tr.dataset.spread = spread === null ? "" : String(spread);
         const priceCell = tr.children[1];
         const buyCell = tr.children[2];
         const spreadCell = tr.children[3];
@@ -560,6 +583,7 @@ async function refreshFavoriteDashboard() {
   };
   await Promise.all(Array.from({length:Math.min(4,favorites.length)},worker));
   saveFavoritePriceHistory(history);
+  sortFavoriteDashboardRows();
   favoriteDashboardStatus.textContent = favorites.length + "件の価格を確認しました。前回比はこの端末での前回チェックとの比較です。";
   favoriteDashboardRefresh.disabled = false;
 }
@@ -969,6 +993,7 @@ renderFavorites();
 updateFavoriteButton();
 refreshFavoriteDashboard();
 favoriteDashboardRefresh.addEventListener("click", refreshFavoriteDashboard);
+if (favoriteDashboardSort) favoriteDashboardSort.addEventListener("change", sortFavoriteDashboardRows);
 
 // Cloudflare-hosted market monitor. The admin token stays in memory only.
 const MONITOR_API = "https://albion-market-tool.yuudai-y0819.workers.dev";
