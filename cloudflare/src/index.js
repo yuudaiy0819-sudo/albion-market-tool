@@ -704,12 +704,14 @@ async function ingestMarketFeedBatch(request, env) {
 
   let body;
   try {
-    body = await request.json();
+    const rawBody = await request.text();
+    if (rawBody.length > 1000000) return json({ error: "Request body exceeds 1 MB" }, 413);
+    body = JSON.parse(rawBody);
   } catch {
     return json({ error: "Request body must be valid JSON" }, 400);
   }
-  if (!Array.isArray(body?.events) || body.events.length < 1 || body.events.length > 200) {
-    return json({ error: "events must contain between 1 and 200 records" }, 400);
+  if (!Array.isArray(body?.events) || body.events.length < 1 || body.events.length > 100) {
+    return json({ error: "events must contain between 1 and 100 records" }, 400);
   }
 
   const receivedAt = new Date().toISOString();
