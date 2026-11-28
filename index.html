@@ -152,10 +152,11 @@
         </div>
         <span class="state unknown" id="monitor-status">未接続</span>
       </div>
-      <p class="monitor-description">管理トークンで接続すると、監視ルールを登録・削除できます。トークンはこのページに保存されません。</p>
+      <p class="monitor-description">管理トークンで接続すると、監視ルールを登録・削除できます。ログイン状態を保存する場合は、この端末を他人と共有しないでください。</p>
       <div class="monitor-connect-row">
         <label class="monitor-token-label" for="monitor-token">管理トークン（ADMIN_TOKEN）</label>
         <input id="monitor-token" type="password" autocomplete="off" placeholder="Cloudflareで設定した管理トークン">
+        <label class="monitor-remember"><input id="monitor-remember" type="checkbox"> この端末でログイン状態を保持</label>
         <button id="monitor-connect" type="button">接続</button>
       </div>
       <div class="monitor-form">
