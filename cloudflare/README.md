@@ -67,6 +67,12 @@ The example is illustrative only; choose a real item and city pair before creati
 - The Worker polls only items that have enabled watch rules; it does not scan the entire item catalogue.
 
 
+## Market-wide data collection (next phase)
+
+The current Worker polls enabled watch rules; it does not continuously collect the whole market. The planned wider-coverage architecture is documented in [MARKET_DATA_ROADMAP.md](./MARKET_DATA_ROADMAP.md).
+
+AODP's public Asia NATS feed can provide deduplicated market-order and market-history observations, but it is not a complete completed-trade ledger. Continuous collection requires a separate always-on subscriber; the Cloudflare Worker remains the HTTPS API and scheduled monitoring layer. No external hosting service or paid resource is enabled by this documentation change.
+
 ## Historical alert context
 
 Spread alerts compare the current purchase-side sell price and destination-side buy price with the median of distinct AODP source timestamps observed during the previous 24 hours. Repeated Worker polls of an unchanged source timestamp count only once, and the current source timestamp is excluded from its own baseline. At least three distinct historical timestamps are required on both sides before the alert can show a consistency label; otherwise it reports insufficient evidence. This is a price-history consistency check only, not a guarantee of executable quantity, completed trades, or profit.
