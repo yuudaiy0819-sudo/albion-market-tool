@@ -9,6 +9,7 @@ on:
   pull_request:
     paths:
       - "collector/**"
+      - "cloudflare/**"
       - ".github/workflows/collector-ci.yml"
 
 jobs:
