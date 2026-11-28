@@ -31,6 +31,16 @@ const orderbookGrid = document.querySelector("#orderbook-grid");
 const orderbookMessage = document.querySelector("#orderbook-message");
 const orderbookQuality = document.querySelector("#orderbook-quality");
 const orderbookRefresh = document.querySelector("#orderbook-refresh");
+const orderbookToggle = document.querySelector("#orderbook-toggle");
+const orderbookContent = document.querySelector("#orderbook-content");
+orderbookToggle.addEventListener("click", () => {
+  const expanded = orderbookToggle.getAttribute("aria-expanded") === "true";
+  orderbookToggle.setAttribute("aria-expanded", String(!expanded));
+  orderbookContent.hidden = expanded;
+  const hint = orderbookToggle.querySelector(".orderbook-toggle-hint");
+  hint.textContent = expanded ? "クリックして注文板を表示" : "クリックして閉じる";
+});
+
 let orderbookRequestId = 0;
 
 function orderbookArray(record, keys) {
