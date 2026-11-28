@@ -78,6 +78,11 @@ function orderAmount(order) {
   return Number.isFinite(amount) && amount >= 0 ? amount : null;
 }
 
+function orderPrice(order) {
+  const price = Number(order?.price ?? order?.unit_price ?? order?.unitPrice ?? order?.price_per_unit);
+  return Number.isFinite(price) && price > 0 ? price : null;
+}
+
 function historyTimestamp(value) {
   if (typeof value === "number") {
     if (value > 600000000000000000) return (value - 621355968000000000) / 10000;
@@ -125,6 +130,8 @@ async function fetchLowStockData(itemId, quality) {
     const points = Array.isArray(record.data) ? record.data : (record.Data || []);
     let count = 0;
     let known = 0;
+    let priceTotal = 0;
+    let priceCount = 0;
     for (const point of points) {
       const timestamp = historyTimestamp(point.timestamp ?? point.Timestamp);
       const raw = point.item_count ?? point.ItemCount;
@@ -134,8 +141,20 @@ async function fetchLowStockData(itemId, quality) {
         count += value;
         known++;
       }
+      const rawPrice = point.avg_price ?? point.AvgPrice ?? point.average_price ?? point.AveragePrice;
+      const price = rawPrice == null ? null : Number(rawPrice);
+      if (price !== null && Number.isFinite(price) && price > 0) {
+        priceTotal += price;
+        priceCount++;
+      }
     }
-    if (known > 0) volumeByCity.set(city, { averageDaily: count / 7, buckets: known });
+    if (known > 0) {
+      volumeByCity.set(city, {
+        averageDaily: count / 7,
+        buckets: known,
+        averageSellPrice: priceCount > 0 ? priceTotal / priceCount : null
+      });
+    }
   }
 
   const stockByCity = new Map();
@@ -144,9 +163,13 @@ async function fetchLowStockData(itemId, quality) {
     if (!ALLOWED_CITIES.has(city) || Number(record.quality ?? record.Quality ?? quality) !== Number(quality)) continue;
     const sellOrders = orderbookOrders(record, ["sell_orders", "sellOrders", "asks", "sell"]);
     if (!sellOrders) continue; // Missing data is unknown, never zero stock.
-    const quantities = sellOrders.map(orderAmount).filter(value => value !== null);
-    if (quantities.length !== sellOrders.length) continue;
-    stockByCity.set(city, quantities.reduce((sum, value) => sum + value, 0));
+    const quantities = sellOrders.map(orderAmount);
+    if (quantities.some(value => value === null)) continue;
+    const prices = sellOrders.map(orderPrice).filter(value => value !== null);
+    stockByCity.set(city, {
+      sellQuantity: quantities.reduce((sum, value) => sum + value, 0),
+      lowestSellPrice: prices.length > 0 ? Math.min(...prices) : null
+    });
   }
 
   const result = new Map();
@@ -154,7 +177,13 @@ async function fetchLowStockData(itemId, quality) {
     const volume = volumeByCity.get(city);
     const stock = stockByCity.get(city);
     if (volume && volume.buckets >= 2 && stock !== undefined) {
-      result.set(city, { averageDaily: volume.averageDaily, sellQuantity: stock, buckets: volume.buckets });
+      result.set(city, {
+        averageDaily: volume.averageDaily,
+        sellQuantity: stock.sellQuantity,
+        lowestSellPrice: stock.lowestSellPrice,
+        averageSellPrice: volume.averageSellPrice,
+        buckets: volume.buckets
+      });
     }
   }
   return result;
@@ -327,6 +356,9 @@ async function pollMarketData(env) {
               `現在の売却注文数量：${Math.round(stock.sellQuantity).toLocaleString()} 個\n` +
               `過去7日間の1日平均数量目安：${Math.round(stock.averageDaily).toLocaleString()} 個\n` +
               `平均比：${(stock.sellQuantity / stock.averageDaily * 100).toFixed(1)}%（通知基準：10%以下）\n` +
+              `現在の最安売却価格：${stock.lowestSellPrice !== null ? stock.lowestSellPrice.toLocaleString() + " シルバー" : "取得できず"}\n` +
+              `過去7日間の平均売却注文価格：${stock.averageSellPrice !== null ? Math.round(stock.averageSellPrice).toLocaleString() + " シルバー" : "取得できず"}\n` +
+              `価格差：${stock.lowestSellPrice !== null && stock.averageSellPrice > 0 ? ((stock.lowestSellPrice - stock.averageSellPrice) / stock.averageSellPrice * 100 >= 0 ? "+" : "") + ((stock.lowestSellPrice - stock.averageSellPrice) / stock.averageSellPrice * 100).toFixed(1) + "%" : "比較できず"}（現在価格と7日平均の比較）\n` +
               `※AODPの観測データによる参考値です。全取引・全注文を保証するものではありません。`;
             await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
             await env.DB.prepare(
