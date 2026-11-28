@@ -1,4 +1,4 @@
-name = "albion-market-monitor"
+name = "albion-market-tool"
 main = "src/index.js"
 compatibility_date = "2026-11-28"
 
