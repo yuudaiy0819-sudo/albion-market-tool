@@ -145,15 +145,18 @@
 @media(max-width:420px){.orderbook-sides{gap:6px}.orderbook-side{padding:7px}.orderbook-level{font-size:9px}.orderbook-level strong{font-size:9px}}
 
 /* Collapsible order book panel */
-.orderbook-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 0;border:0;background:transparent;text-align:left;cursor:pointer;color:inherit}
+.orderbook-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 0;list-style:none;text-align:left;cursor:pointer;color:inherit}
+.orderbook-toggle::-webkit-details-marker{display:none}
+.orderbook-toggle::marker{content:""}
 .orderbook-toggle-copy{display:grid;gap:4px}
 .orderbook-toggle-title{font-size:18px;font-weight:700;color:#202833}
 .orderbook-toggle-hint{font-size:11px;color:#858e99}
 .orderbook-toggle-icon{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border:1px solid #e1e5e9;border-radius:50%;font-size:20px;color:#4b5563;transition:transform .18s ease,background .18s ease}
-.orderbook-toggle[aria-expanded="true"] .orderbook-toggle-icon{transform:rotate(45deg);background:#f5f7f9}
+.orderbook-panel[open] .orderbook-toggle-icon{transform:rotate(45deg);background:#f5f7f9}
+.orderbook-panel[open] .orderbook-toggle-hint{content:""}
 .orderbook-content{margin-top:18px}
-.orderbook-content[hidden]{display:none}
+.orderbook-content{display:block}
 
 .orderbook-sides.single{grid-template-columns:1fr}
-.orderbook-toggle{position:relative;z-index:2;pointer-events:auto;touch-action:manipulation}
+.orderbook-toggle{position:relative;touch-action:manipulation}
 .orderbook-toggle *{pointer-events:none}
