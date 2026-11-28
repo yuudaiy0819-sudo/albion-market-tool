@@ -20,9 +20,11 @@ This folder contains the Cloudflare Worker backend for Albion Market Tool.
 - [x] AODP East current-price polling for enabled watch rules
 - [x] Manual protected polling endpoint for testing
 - [x] Add watch-rule controls to the website
-- [ ] Add stale-data validation and spread/drop calculations
-- [ ] Add deduplicated market alerts
-- [ ] Add order-book depth collection
+- [x] Add stale-data validation and spread/drop calculations
+- [x] Add deduplicated market alerts
+- [x] Add order-book depth collection
+- [x] Compare spread-alert prices with the previous 24 hours of distinct AODP source timestamps
+- [x] Include historical price-consistency context in Discord spread alerts
 
 ## Protected endpoints
 
@@ -60,3 +62,8 @@ The example is illustrative only; choose a real item and city pair before creati
 - AODP source timestamps must be checked before generating alerts.
 - Historical sell-order averages are not confirmed completed trades.
 - The Worker polls only items that have enabled watch rules; it does not scan the entire item catalogue.
+
+
+## Historical alert context
+
+Spread alerts compare the current purchase-side sell price and destination-side buy price with the median of distinct AODP source timestamps observed during the previous 24 hours. Repeated Worker polls of an unchanged source timestamp count only once, and the current source timestamp is excluded from its own baseline. At least three distinct historical timestamps are required on both sides before the alert can show a consistency label; otherwise it reports insufficient evidence. This is a price-history consistency check only, not a guarantee of executable quantity, completed trades, or profit.
