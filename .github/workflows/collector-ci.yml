@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "collector/**"
+      - "cloudflare/**"
       - ".github/workflows/collector-ci.yml"
   pull_request:
     paths:
