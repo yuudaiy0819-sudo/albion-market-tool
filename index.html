@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#ffffff">
   <meta name="description" content="Albion Online Asia マーケット価格比較ツール">
   <title>Albion Market Tool</title>
-  <link rel="stylesheet" href="./styles.css?v=anomaly20261128">
-  <script src="./app.js?v=anomaly20261128" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=markethealth20261128">
+  <script src="./app.js?v=markethealth20261128" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -17,7 +17,7 @@
       <span>Albion Market Tool</span>
     </a>
     <span class="region-pill"><span class="status-dot"></span> ASIA SERVER</span>
-    <nav class="site-menu" id="site-menu" aria-label="ページ目次" hidden><div class="site-menu-heading"><strong>ページ目次</strong><button id="menu-close" type="button" aria-label="目次を閉じる">×</button></div><a href="#search-panel">アイテム検索</a><a href="#market-panel">都市別価格・アイテム詳細</a><a href="#orderbook-panel">注文板・数量比較</a><a href="#history-panel">価格履歴・販売数量</a><a href="#favorite-dashboard-panel">お気に入り価格一覧</a><a href="#favorite-movement-panel">お気に入り価格変動</a><a href="#favorites-panel">お気に入りリスト</a><a href="#monitor-panel">自動価格監視・通知履歴</a></nav>
+    <nav class="site-menu" id="site-menu" aria-label="ページ目次" hidden><div class="site-menu-heading"><strong>ページ目次</strong><button id="menu-close" type="button" aria-label="目次を閉じる">×</button></div><a href="#search-panel">アイテム検索</a><a href="#market-health-panel">都市別データ鮮度</a><a href="#market-panel">都市別価格・アイテム詳細</a><a href="#orderbook-panel">注文板・数量比較</a><a href="#history-panel">価格履歴・販売数量</a><a href="#favorite-dashboard-panel">お気に入り価格一覧</a><a href="#favorite-movement-panel">お気に入り価格変動</a><a href="#favorites-panel">お気に入りリスト</a><a href="#monitor-panel">自動価格監視・通知履歴</a></nav>
     <button class="menu-backdrop" id="menu-backdrop" type="button" aria-label="目次を閉じる" hidden></button>
   </header>
 
@@ -26,6 +26,20 @@
       <p class="eyebrow">ALBION ONLINE / ASIA</p>
       <h1>マーケット価格比較</h1>
       <p class="lead">アイテムを検索して、都市ごとの売値・買値を比較。</p>
+    </section>
+
+    <section id="market-health-panel" class="panel market-health-panel" aria-labelledby="market-health-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">MARKET DATA HEALTH</p>
+          <h2 id="market-health-title">都市別データ鮮度</h2>
+          <p class="history-subtitle">監視対象アイテムのAODP価格データが新しいか確認</p>
+        </div>
+        <button class="secondary-button" id="market-health-refresh" type="button">状態を更新</button>
+      </div>
+      <p id="market-health-status" class="history-message" aria-live="polite">都市別データを確認しています…</p>
+      <div id="market-health-grid" class="market-health-grid" aria-live="polite"></div>
+      <p class="market-health-note">この表示は有効な価格監視ルールに登録されたアイテム・都市のみが対象です。AODPの価格更新時刻を基準に3時間を超えたデータを「古い」と表示します。全アイテム・全市場の網羅性を保証するものではありません。</p>
     </section>
 
     <section id="search-panel" class="panel search-panel" aria-labelledby="search-title">
