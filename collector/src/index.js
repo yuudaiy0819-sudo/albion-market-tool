@@ -9,6 +9,7 @@ const INGEST_TOKEN = process.env.INGEST_TOKEN;
 const BATCH_SIZE = Number(process.env.BATCH_SIZE || 100);
 const FLUSH_INTERVAL_MS = Number(process.env.FLUSH_INTERVAL_MS || 1500);
 const MAX_QUEUE = Number(process.env.MAX_QUEUE || 20000);
+const MAX_BATCH_BYTES = Number(process.env.MAX_BATCH_BYTES || 900000);
 const SPOOL_FILE = process.env.SPOOL_FILE || "/data/queue.jsonl";
 const codec = StringCodec();
 
@@ -66,7 +67,15 @@ async function flush() {
   inFlight = true;
   try {
     while (queue.length > 0 && !stopping) {
-      const batch = queue.splice(0, BATCH_SIZE);
+      const batch = [];
+      let batchBytes = 0;
+      while (queue.length > 0 && batch.length < BATCH_SIZE) {
+        const nextBytes = Buffer.byteLength(JSON.stringify(queue[0])) + 1;
+        if (batch.length > 0 && batchBytes + nextBytes > MAX_BATCH_BYTES) break;
+        if (nextBytes > MAX_BATCH_BYTES) throw new Error("A spooled event exceeds the ingest request size limit");
+        batch.push(queue.shift());
+        batchBytes += nextBytes;
+      }
       await forwardBatch(batch);
       persistQueue();
       console.log("Batch forwarded", {
@@ -110,6 +119,9 @@ async function main() {
         try {
           const payload = JSON.parse(codec.decode(message.data));
           const event = normalizeMessage(subject, payload);
+          if (Buffer.byteLength(JSON.stringify(event)) > MAX_BATCH_BYTES - 1000) {
+            throw new Error("NATS event exceeds the safe ingest payload size");
+          }
           while (queue.length >= MAX_QUEUE && !stopping) {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
@@ -146,7 +158,16 @@ async function main() {
     clearInterval(flushTimer);
     while (inFlight) await new Promise(resolve => setTimeout(resolve, 100));
     while (queue.length > 0) {
-      const batch = queue.splice(0, BATCH_SIZE);
+      const batch = [];
+      let batchBytes = 0;
+      while (queue.length > 0 && batch.length < BATCH_SIZE) {
+        const nextBytes = Buffer.byteLength(JSON.stringify(queue[0])) + 1;
+        if (batch.length > 0 && batchBytes + nextBytes > MAX_BATCH_BYTES) break;
+        if (nextBytes > MAX_BATCH_BYTES) break;
+        batch.push(queue.shift());
+        batchBytes += nextBytes;
+      }
+      if (batch.length === 0) break;
       try {
         await forwardBatch(batch);
         persistQueue();
