@@ -1,51 +1,62 @@
 # Cloudflare monitoring backend
 
-This folder contains the first backend foundation for Albion Market Tool.
+This folder contains the Cloudflare Worker backend for Albion Market Tool.
 
-## Planned architecture
+## Architecture
 
 - GitHub Pages remains the public web app.
 - Cloudflare Workers runs scheduled monitoring independently of the browser.
-- Cloudflare D1 stores watch rules, observed AODP prices, and alert events.
+- Cloudflare D1 stores watch rules and observed AODP prices.
 - AODP East is the market-data source.
+- Discord receives operational and market alerts.
 
 ## Current status
 
 - [x] Worker health endpoint
 - [x] 15-minute scheduled entry point
 - [x] D1 schema for watch rules, price observations, and alert events
-- [ ] Create the Cloudflare Worker and D1 database
-- [ ] Configure the D1 database ID in wrangler.toml
-- [ ] Deploy and verify /health
-- [ ] Implement AODP polling for saved city-pair watch rules
+- [x] Protected Discord test endpoint
+- [x] Protected watch-rule list/create/delete endpoints
+- [x] AODP East current-price polling for enabled watch rules
+- [x] Manual protected polling endpoint for testing
+- [ ] Add watch-rule controls to the website
 - [ ] Add stale-data validation and spread/drop calculations
-- [ ] Connect the selected notification channel
-- [ ] Connect the website's watch-list UI to the backend
+- [ ] Add deduplicated market alerts
+- [ ] Add order-book depth collection
 
-## First-time setup
+## Protected endpoints
 
-1. Install Node.js and Wrangler.
-2. Log in to Cloudflare with Wrangler.
-3. Create a D1 database named albion-market-monitor.
-4. Copy the returned database ID into wrangler.toml.
-5. From this directory, apply migrations and deploy the Worker.
+All `/admin/*` endpoints require:
 
-Commands:
-
-```bash
-npm install --global wrangler
-wrangler login
-wrangler d1 create albion-market-monitor
-wrangler d1 migrations apply albion-market-monitor --remote
-wrangler deploy
+```
+Authorization: Bearer <ADMIN_TOKEN>
 ```
 
-The database_id placeholder must be replaced before deployment.
+- `GET /admin/watch-rules` — list watch rules
+- `POST /admin/watch-rules` — create a watch rule
+- `DELETE /admin/watch-rules/{id}` — delete a watch rule
+- `POST /admin/poll-now` — run one market-data poll immediately
+- `POST /admin/test-discord` — send a Discord test message
+
+Example create-rule JSON:
+
+```json
+{
+  "item_id": "T4_BAG",
+  "item_name": "バッグ",
+  "quality": 1,
+  "buy_city": "Bridgewatch",
+  "sell_city": "Caerleon",
+  "min_spread": 1000
+}
+```
+
+The example is illustrative only; choose a real item and city pair before creating a rule.
 
 ## Data integrity
 
-- Missing prices remain NULL; they are never converted to zero.
-- AODP source timestamps must be checked before an alert is generated.
-- AODP observations are community-contributed snapshots, not guaranteed live quotes.
-- The backend must not describe sell-order history as confirmed completed trades.
-- Notification delivery is intentionally not enabled until a channel is selected and configured.
+- Missing market prices are stored as NULL, not as zero.
+- Current prices are AODP snapshots, not guaranteed live quotes.
+- AODP source timestamps must be checked before generating alerts.
+- Historical sell-order averages are not confirmed completed trades.
+- The Worker polls only items that have enabled watch rules; it does not scan the entire item catalogue.
