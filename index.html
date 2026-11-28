@@ -11,11 +11,14 @@
 </head>
 <body>
   <header class="topbar">
+    <button class="menu-toggle" id="menu-toggle" type="button" aria-label="目次を開く" aria-expanded="false" aria-controls="site-menu"><span></span><span></span><span></span></button>
     <a class="brand" href="./" aria-label="Albion Market Tool ホーム">
       <span class="brand-mark">A</span>
       <span>Albion Market Tool</span>
     </a>
     <span class="region-pill"><span class="status-dot"></span> ASIA SERVER</span>
+    <nav class="site-menu" id="site-menu" aria-label="ページ目次" hidden><div class="site-menu-heading"><strong>ページ目次</strong><button id="menu-close" type="button" aria-label="目次を閉じる">×</button></div><a href="#search-panel">アイテム検索</a><a href="#market-panel">都市別価格・アイテム詳細</a><a href="#orderbook-panel">注文板・数量比較</a><a href="#history-panel">価格履歴・販売数量</a><a href="#favorite-dashboard-panel">お気に入り価格一覧</a><a href="#favorite-movement-panel">お気に入り価格変動</a><a href="#favorites-panel">お気に入りリスト</a><a href="#monitor-panel">自動価格監視・通知履歴</a></nav>
+    <button class="menu-backdrop" id="menu-backdrop" type="button" aria-label="目次を閉じる" hidden></button>
   </header>
 
   <main class="page">
@@ -25,7 +28,7 @@
       <p class="lead">アイテムを検索して、都市ごとの売値・買値を比較。</p>
     </section>
 
-    <section class="panel search-panel" aria-labelledby="search-title">
+    <section id="search-panel" class="panel search-panel" aria-labelledby="search-title">
       <div class="section-heading">
         <div>
           <p class="eyebrow">ITEM SEARCH</p>
@@ -64,7 +67,7 @@
       <p class="helper" id="search-message" aria-live="polite">アイテム一覧を読み込んで検索できます。</p><div id="item-results" class="item-results" aria-live="polite"></div>
     </section>
 
-    <section class="panel" aria-labelledby="market-title">
+    <section id="market-panel" class="panel" aria-labelledby="market-title">
       <div class="section-heading">
         <div>
           <p class="eyebrow">MARKET OVERVIEW</p>
@@ -95,7 +98,7 @@
       </div>
     </section>
 
-    <details class="panel orderbook-panel">
+    <details id="orderbook-panel" class="panel orderbook-panel">
       <summary class="orderbook-toggle">
         <span class="orderbook-toggle-copy">
           <span class="eyebrow">LIVE ORDER BOOK</span>
@@ -130,7 +133,7 @@
       </div>
     </details>
 
-    <section class="panel history-panel" aria-labelledby="history-title">
+    <section id="history-panel" class="panel history-panel" aria-labelledby="history-title">
       <div class="section-heading history-heading">
         <div>
           <p class="eyebrow">PRICE HISTORY</p>
@@ -186,7 +189,7 @@
       </div>
     </section>
 
-    <section class="panel favorite-dashboard-panel" aria-labelledby="favorite-dashboard-title">
+    <section id="favorite-dashboard-panel" class="panel favorite-dashboard-panel" aria-labelledby="favorite-dashboard-title">
       <div class="section-heading favorite-dashboard-heading">
         <div>
           <p class="eyebrow">FAVORITE MARKET WATCH</p>
@@ -205,14 +208,14 @@
       <p class="favorite-dashboard-note">価格差は「最高買い価格 − 最安売り価格」の単純差額です。税金・手数料・品質差・移動費は含みません。価格はAODPの観測データで、未観測は0ではなく「—」で表示します。</p>
     </section>
 
-    <section class="panel favorite-movement-panel" aria-labelledby="favorite-movement-title">
+    <section id="favorite-movement-panel" class="panel favorite-movement-panel" aria-labelledby="favorite-movement-title">
 <div class="section-heading favorite-dashboard-heading"><div><p class="eyebrow">FAVORITE PRICE MOVEMENT</p><h2 id="favorite-movement-title">お気に入り価格変動ランキング</h2><p class="history-subtitle">お気に入り商品の売り注文平均価格を期間内で比較</p></div>
 <div class="favorite-dashboard-actions"><label for="favorite-movement-range">期間<select id="favorite-movement-range"><option value="1h">1時間</option><option value="24h" selected>24時間</option><option value="7d">7日間</option></select></label><label for="favorite-movement-sort">並び順<select id="favorite-movement-sort"><option value="up">値上がり率が大きい順</option><option value="down">値下がり率が大きい順</option><option value="absolute">変動率の絶対値順</option><option value="amount">変動額の絶対値順</option></select></label><button class="secondary-button" id="favorite-movement-refresh" type="button">ランキング更新</button></div></div>
 <p id="favorite-movement-status" class="history-message" aria-live="polite">お気に入り商品の価格変動を取得します。</p>
 <div class="table-wrap"><table class="favorite-dashboard-table favorite-movement-table"><thead><tr><th>アイテム</th><th>比較価格</th><th>変動額</th><th>変動率</th><th>観測状態</th></tr></thead><tbody id="favorite-movement-rows"><tr><td colspan="5" class="empty">お気に入りを登録するとランキングを表示します。</td></tr></tbody></table></div>
 <p class="favorite-dashboard-note">AODPの売り注文平均価格を、同じ都市・品質の期間内最初と最後の観測値で比較します。取引成立価格ではありません。データ不足・古い観測は比較対象外になる場合があります。</p></section>
 
-    <section class="feature-grid">
+    <section id="favorites-panel" class="feature-grid">
       <article class="panel feature-card favorites-card"><p class="eyebrow">FAVORITES</p><h2>お気に入り</h2><p>登録したアイテムをクリックすると、条件を復元して価格を再表示できます。</p><div id="favorite-list" class="favorite-list" aria-live="polite"></div></article>
       <article class="panel feature-card"><p class="eyebrow">PRICE MONITOR</p><h2>自動価格監視</h2><p>アイテムと都市の組み合わせを登録して、サーバー側で価格を定期収集。</p><a class="monitor-link" href="#monitor-panel">監視設定へ</a></article>
     </section>
