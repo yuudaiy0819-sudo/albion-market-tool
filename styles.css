@@ -223,3 +223,19 @@ body.menu-open{overflow:hidden}
 
 /* Market data anomaly screening */
 .market-check-warning{color:#8a4b08;background:#fff1d6;border:1px solid #f4d18c}.market-check-ok{color:#176b45;background:#e7f5ed;border:1px solid #b8e2c9}.market-check-note{margin:12px 0 0;color:#7a838e;font-size:11px;line-height:1.65}
+
+
+/* Public market data freshness */
+.market-health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.market-health-card{min-width:0;padding:12px;border:1px solid #e6e9ed;border-radius:10px;background:#fff}
+.market-health-card h3{margin:0 0 7px;color:#303741;font-size:13px}
+.market-health-state{display:inline-flex;align-items:center;gap:6px;margin-bottom:7px;font-size:11px;font-weight:750}
+.market-health-state::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.market-health-card.normal .market-health-state{color:#16834a}
+.market-health-card.stale .market-health-state{color:#a66a12}
+.market-health-card.missing .market-health-state{color:#b54747}
+.market-health-counts{margin:0;color:#707a86;font-size:10px;line-height:1.6}
+.market-health-time{margin:5px 0 0;color:#929aa4;font-size:9px;line-height:1.5}
+.market-health-note{margin:12px 0 0;color:#89919b;font-size:10px;line-height:1.7}
+@media(max-width:700px){.market-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.market-health-panel .section-heading{align-items:flex-start;flex-direction:column}.market-health-panel .section-heading button{width:100%}}
+@media(max-width:380px){.market-health-grid{grid-template-columns:1fr}}
