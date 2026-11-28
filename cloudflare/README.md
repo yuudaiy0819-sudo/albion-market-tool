@@ -82,7 +82,8 @@ Spread alerts compare the current purchase-side sell price and destination-side 
 
 - The standalone Node.js collector lives in `../collector` and subscribes to AODP Asia `marketorders.deduped` and `markethistories.deduped`.
 - It forwards validated messages to `POST /internal/market-feed/batch`.
-- The endpoint requires a separate `MARKET_INGEST_TOKEN` secret and the D1 migration `0002_market_feed_events.sql`.
+- The endpoint requires a separate `MARKET_INGEST_TOKEN` Worker secret and the D1 migration `0002_market_feed_events.sql`.
+- Apply the migration explicitly with Wrangler before enabling ingestion; do not assume a Worker deploy applies D1 migrations.
 - The collector host must receive `INGEST_URL` and `INGEST_TOKEN` as environment variables. Never put the token in frontend code or Git.
-- This is a pilot ingestion path. It does not yet create a complete trade ledger or a fully materialized active-order book. The collector currently retries in memory; durable disk spooling and production monitoring are follow-up hardening tasks.
+- This is a pilot ingestion path. It does not yet create a complete trade ledger or a fully materialized active-order book. The collector persists pending batches in a JSONL spool on disk and resumes them after restart when its host provides persistent storage.
 - Do not run the collector against production until the migration is applied, the secret is configured, and a small test batch has been verified.
