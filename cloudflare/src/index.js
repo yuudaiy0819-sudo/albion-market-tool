@@ -1,6 +1,9 @@
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
-  "cache-control": "no-store"
+  "cache-control": "no-store",
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+  "access-control-allow-headers": "authorization, content-type"
 };
 
 const AODP_BASE = "https://east.albion-online-data.com/api/v2";
@@ -161,6 +164,10 @@ async function pollMarketData(env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: JSON_HEADERS });
+    }
 
     if (request.method === "GET" && url.pathname === "/health") {
       return json({
