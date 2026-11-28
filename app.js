@@ -11,7 +11,11 @@ const enchantSelect = document.querySelector("#enchantment");
 const qualitySelect = document.querySelector("#quality");
 const favoriteButton = document.querySelector("#favorite-button");
 const favoriteList = document.querySelector("#favorite-list");
-const historyCity = document.querySelector("#history-city");
+const historyQuality = document.querySelector("#history-quality");
+const historyCityInputs = document.querySelectorAll("[data-history-city]");
+const historyCityAllButton = document.querySelector("#history-city-all");
+const historyCityClearButton = document.querySelector("#history-city-clear");
+const HISTORY_CITY_COLORS = ["#2563eb", "#0f9f8f", "#d18a22", "#7c65c1", "#d15d76", "#64748b", "#0891b2", "#8b5e34"];
 const historyChart = document.querySelector("#history-chart");
 const historyLegend = document.querySelector("#history-legend");
 const historyMessage = document.querySelector("#history-message");
@@ -278,42 +282,60 @@ function parseHistoryTimestamp(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function selectedHistoryCities() {
+  return [...historyCityInputs].filter(input => input.checked).map(input => input.dataset.historyCity);
+}
+
 function renderHistory(payload, range, timeScale) {
   historyChart.replaceChildren();
   historyLegend.replaceChildren();
   const records = Array.isArray(payload) ? payload : (payload.data || payload.series || []);
-  const city = historyCity.value;
-  const byQuality = new Map();
+  const selectedCities = selectedHistoryCities();
+  const selectedQuality = historyQuality.value;
+  const byCity = new Map(selectedCities.map(city => [city, new Map()]));
 
   for (const record of records) {
     const recordCity = record.location || record.city || record.Location;
-    if (recordCity && recordCity.toLowerCase() !== city.toLowerCase()) continue;
+    if (!recordCity || !byCity.has(recordCity)) continue;
     const quality = String(record.quality || record.Quality || "1");
+    if (selectedQuality !== "all" && quality !== selectedQuality) continue;
     const points = Array.isArray(record.data) ? record.data : (record.Data || []);
-    if (!byQuality.has(quality)) byQuality.set(quality, []);
+    const cityPoints = byCity.get(recordCity);
     for (const point of points) {
       const date = parseHistoryTimestamp(point.timestamp ?? point.Timestamp);
       const price = Number(point.avg_price ?? point.AveragePrice);
       if (!date || !Number.isFinite(price) || price <= 0) continue;
-      byQuality.get(quality).push({
-        time: date.getTime(),
-        price,
-        count: Number(point.item_count ?? point.ItemCount ?? 0)
-      });
+      const countValue = Number(point.item_count ?? point.ItemCount ?? 0);
+      const weight = countValue > 0 ? countValue : 1;
+      const time = date.getTime();
+      if (!cityPoints.has(time)) cityPoints.set(time, { weightedPrice: 0, weight: 0, count: 0 });
+      const aggregate = cityPoints.get(time);
+      aggregate.weightedPrice += price * weight;
+      aggregate.weight += weight;
+      aggregate.count += countValue > 0 ? countValue : 0;
     }
   }
 
   const now = Date.now();
   const days = range === "24h" ? 1 : range === "7d" ? 7 : 30;
   const minTime = now - days * 86400000;
-  const series = [...byQuality.entries()].map(([quality, points]) => ({
-    quality,
-    points: points.filter(point => point.time >= minTime && point.time <= now + 3600000)
+  const series = [...byCity.entries()].map(([city, points], cityIndex) => ({
+    city,
+    cityIndex,
+    points: [...points.entries()]
+      .map(([time, value]) => ({ time, price: value.weightedPrice / value.weight, count: value.count }))
+      .filter(point => point.time >= minTime && point.time <= now + 3600000)
       .sort((a,b) => a.time - b.time)
   })).filter(item => item.points.length);
 
+  if (!selectedCities.length) {
+    historyChart.textContent = "比較する都市を1つ以上選択してください。";
+    historyChart.className = "history-chart history-empty";
+    historyMessage.textContent = "都市のチェックを入れると価格履歴を表示します。";
+    return;
+  }
   if (!series.length) {
-    historyChart.textContent = "この都市・品質では、期間内の履歴データが見つかりませんでした。";
+    historyChart.textContent = "選択した都市・品質では、期間内の履歴データが見つかりませんでした。";
     historyChart.className = "history-chart history-empty";
     historyMessage.textContent = "未観測の期間があります。データがないことは、取引や注文がなかったことを意味しません。";
     return;
@@ -324,7 +346,7 @@ function renderHistory(payload, range, timeScale) {
   const svg = document.createElementNS(svgNS, "svg");
   svg.setAttribute("viewBox", "0 0 900 330");
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", "売り注文の平均価格の履歴グラフ");
+  svg.setAttribute("aria-label", "都市別の売り注文平均価格の履歴比較グラフ");
   const width = 900, height = 330, left = 78, right = 22, top = 22, bottom = 48;
   const plotW = width - left - right, plotH = height - top - bottom;
   const allPoints = series.flatMap(item => item.points);
@@ -359,13 +381,14 @@ function renderHistory(payload, range, timeScale) {
     label.textContent = dateFormat.format(new Date(time));
   }
 
-  const qualityNames = {"1":"ノーマル","2":"良好","3":"傑出","4":"エクセレント","5":"最高傑作"};
   for (const item of series) {
+    const color = HISTORY_CITY_COLORS[item.cityIndex % HISTORY_CITY_COLORS.length];
     const legend = document.createElement("span");
-    legend.className = "history-legend-item quality-" + item.quality;
+    legend.className = "history-legend-item";
     const dot = document.createElement("i");
+    dot.style.backgroundColor = color;
     const textNode = document.createElement("span");
-    textNode.textContent = qualityNames[item.quality] || ("品質 " + item.quality);
+    textNode.textContent = item.city;
     legend.append(dot,textNode);
     historyLegend.append(legend);
 
@@ -383,12 +406,12 @@ function renderHistory(payload, range, timeScale) {
     for (const group of segments) {
       if (group.length > 1) {
         const d = group.map((point,index) => (index ? "L" : "M") + x(point.time).toFixed(1) + "," + y(point.price).toFixed(1)).join(" ");
-        make("path",{d,class:"history-line quality-" + item.quality});
+        make("path",{d,class:"history-line",stroke:color});
       }
       for (const point of group) {
-        const circle = make("circle",{cx:x(point.time),cy:y(point.price),r:3.5,class:"history-point quality-" + item.quality});
+        const circle = make("circle",{cx:x(point.time),cy:y(point.price),r:3.5,class:"history-point",fill:color,stroke:"#fff"});
         const title = document.createElementNS(svgNS,"title");
-        title.textContent = new Date(point.time).toLocaleString("ja-JP") + " · " + Math.round(point.price).toLocaleString("en-US") + " s · 個数 " + (point.count || "不明");
+        title.textContent = new Date(point.time).toLocaleString("ja-JP") + " · " + Math.round(point.price).toLocaleString("en-US") + " s · 件数 " + (point.count || "不明");
         circle.append(title);
       }
     }
@@ -397,14 +420,16 @@ function renderHistory(payload, range, timeScale) {
   const observedCount = series.reduce((sum, item) => sum + item.points.length, 0);
   const latestObserved = Math.max(...series.flatMap(item => item.points.map(point => point.time)));
   const latestLabel = new Date(latestObserved).toLocaleString("ja-JP");
-  historyMessage.textContent = "取得元：AODP Asia API（実データ） · 観測点 " + observedCount
-    + "件 · 最終観測 " + latestLabel
+  const qualityLabel = selectedQuality === "all" ? "全品質（品質ごとの観測件数で加重平均）" : "品質 " + selectedQuality;
+  historyMessage.textContent = "取得元：AODP Asia API（実データ） · " + qualityLabel
+    + " · 観測点 " + observedCount + "件 · 最終観測 " + latestLabel
     + "。売り注文の平均価格です（実際の取引成立価格ではありません）。";
 }
 
 async function loadHistory() {
   if (!selectedItem || !historyChart) return;
   const requestId = ++historyRequestId;
+  const cities = selectedHistoryCities();
   const rangeSettings = {
     "24h": {days:1, scale:1},
     "7d": {days:7, scale:6},
@@ -413,15 +438,20 @@ async function loadHistory() {
   const settings = rangeSettings[historyRange];
   const end = new Date();
   const start = new Date(end.getTime() - settings.days * 86400000);
-  const qualities = qualitySelect.value === "all" ? "1,2,3,4,5" : qualitySelect.value;
+  const qualities = historyQuality.value === "all" ? "1,2,3,4,5" : historyQuality.value;
   const itemId = selectedItemId();
   historyChart.className = "history-chart history-empty";
   historyChart.textContent = "価格履歴を取得しています…";
   historyLegend.replaceChildren();
-  historyMessage.textContent = itemId + " · " + historyCity.value + " · AODP履歴データ";
+  if (!cities.length) {
+    historyChart.textContent = "比較する都市を1つ以上選択してください。";
+    historyMessage.textContent = "都市のチェックを入れると価格履歴を表示します。";
+    return;
+  }
+  historyMessage.textContent = itemId + " · " + cities.join(", ") + " · AODP履歴データ";
   try {
     const url = "https://east.albion-online-data.com/api/v2/stats/history/"
-      + encodeURIComponent(itemId) + ".json?locations=" + encodeURIComponent(historyCity.value)
+      + encodeURIComponent(itemId) + ".json?locations=" + encodeURIComponent(cities.join(","))
       + "&qualities=" + encodeURIComponent(qualities)
       + "&date=" + localDateString(start) + "&end_date=" + localDateString(end)
       + "&time-scale=" + settings.scale;
@@ -518,7 +548,16 @@ for (const control of [tierSelect, enchantSelect, qualitySelect]) {
     }
   });
 }
-historyCity.addEventListener("change", loadHistory);
+historyQuality.addEventListener("change", loadHistory);
+for (const input of historyCityInputs) input.addEventListener("change", loadHistory);
+historyCityAllButton.addEventListener("click", () => {
+  historyCityInputs.forEach(input => { input.checked = true; });
+  loadHistory();
+});
+historyCityClearButton.addEventListener("click", () => {
+  historyCityInputs.forEach(input => { input.checked = false; });
+  loadHistory();
+});
 for (const button of historyRangeButtons) {
   button.addEventListener("click", () => {
     historyRange = button.dataset.historyRange;
