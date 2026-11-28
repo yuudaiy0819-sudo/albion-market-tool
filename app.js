@@ -63,10 +63,11 @@ function renderOrderLevels(container, orders, side) {
     container.append(empty);
     return;
   }
-  let total = 0;
+  let visibleTotal = 0;
+  const allTotal = sorted.reduce((sum, order) => sum + orderbookAmount(order), 0);
   for (const order of visible) {
     const amount = orderbookAmount(order);
-    total += amount;
+    visibleTotal += amount;
     const row = document.createElement("div");
     row.className = "orderbook-level";
     const price = document.createElement("span");
@@ -78,7 +79,7 @@ function renderOrderLevels(container, orders, side) {
   }
   const totalRow = document.createElement("div");
   totalRow.className = "orderbook-total";
-  totalRow.textContent = "上位5価格帯：" + Math.round(total).toLocaleString("ja-JP") + " 個";
+  totalRow.textContent = "全価格帯合計：" + Math.round(allTotal).toLocaleString("ja-JP") + " 個 · " + sorted.length.toLocaleString("ja-JP") + " 価格帯（上位5価格帯：" + Math.round(visibleTotal).toLocaleString("ja-JP") + " 個）";
   container.append(totalRow);
 }
 
