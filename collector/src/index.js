@@ -144,10 +144,17 @@ async function main() {
     console.log("Stopping collector", signal);
     stopping = true;
     clearInterval(flushTimer);
-    // Drain the in-memory queue before closing the connection.
-    stopping = false;
-    while (queue.length > 0) await flush();
-    stopping = true;
+    while (inFlight) await new Promise(resolve => setTimeout(resolve, 100));
+    while (queue.length > 0) {
+      const batch = queue.splice(0, BATCH_SIZE);
+      try {
+        await forwardBatch(batch);
+        persistQueue();
+      } catch (error) {
+        console.error("Shutdown drain failed; pending events remain on disk", error.message);
+        break;
+      }
+    }
     await nc.drain();
     process.exit(0);
   };
