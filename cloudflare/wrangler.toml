@@ -8,5 +8,5 @@ crons = ["*/15 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "albion-market-monitor"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "efedae6c-dbf7-481f-804a-0391c8f0b630"
 migrations_dir = "migrations"
