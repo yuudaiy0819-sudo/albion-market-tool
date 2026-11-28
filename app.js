@@ -213,7 +213,7 @@ async function renderItemDetails() {
   const status = document.querySelector("#item-detail-status");
   if (!panel || !content || !selectedItem) return;
   const requestId = ++itemDetailRequestId;
-  const identifier = selectedItemId().replace(/@\\d+$/, "");
+  const identifier = selectedItemId().replace(/@\d+$/, "");
   panel.hidden = false;
   content.replaceChildren();
   status.textContent = "アイテム情報を取得しています…";
@@ -263,7 +263,7 @@ async function renderItemDetails() {
         if (!recipeResponse.ok) throw new Error("HTTP " + recipeResponse.status);
         const recipePayload = await recipeResponse.json();
         if (requestId !== itemDetailRequestId) return;
-        const enchantment = Number((selectedItemId().match(/@(\\d+)$/) || [,"0"])[1]);
+        const enchantment = Number((selectedItemId().match(/@(\d+)$/) || [,"0"])[1]);
         const recipes = (Array.isArray(recipePayload.data) ? recipePayload.data : [])
           .filter(entry => Number(entry.enchantment) === enchantment);
         recipeStatus.remove();
