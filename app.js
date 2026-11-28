@@ -1112,42 +1112,69 @@ async function loadPrices() {
   if (!selectedItem) return;
   const itemId = selectedItemId();
   showSelectedItem();
-  const qualities = qualitySelect.value === "all" ? "1,2,3,4,5" : qualitySelect.value;
+  const selectedQuality = qualitySelect.value;
+  const qualities = selectedQuality === "all" ? ["1", "2", "3", "4", "5"] : [selectedQuality];
   rows.replaceChildren();
   const loading = document.createElement("tr");
-  loading.innerHTML = '<td colspan="5">Asiaサーバーの価格データを取得中…</td>';
+  const loadingCell = document.createElement("td");
+  loadingCell.colSpan = 6;
+  loadingCell.textContent = "Asiaサーバーの価格データを取得中…";
+  loading.append(loadingCell);
   rows.append(loading);
   try {
     const url = API_BASE + "/" + encodeURIComponent(itemId) + ".json?locations="
-      + encodeURIComponent(CITIES.join(",")) + "&qualities=" + encodeURIComponent(qualities);
+      + encodeURIComponent(CITIES.join(",")) + "&qualities=" + encodeURIComponent(qualities.join(","));
     const response = await fetch(url);
     if (!response.ok) throw new Error("価格APIが応答しませんでした（HTTP " + response.status + "）。");
     const data = await response.json();
-    const byCity = new Map(data.map((entry) => [entry.city, entry]));
+    if (!Array.isArray(data)) throw new Error("価格APIの応答形式が想定と異なります。");
+    const byCityQuality = new Map(data.map(entry => [
+      String(entry.city || entry.location || "") + "|" + String(entry.quality ?? "1"),
+      entry
+    ]));
+    const qualityNames = { "1": "ノーマル", "2": "良好", "3": "傑出", "4": "エクセレント", "5": "最高傑作" };
     rows.replaceChildren();
     for (const city of CITIES) {
-      const entry = byCity.get(city);
-      const tr = document.createElement("tr");
-      const latest = entry ? [parseDate(entry.sell_price_min_date), parseDate(entry.buy_price_max_date)]
-        .filter(Boolean).sort((a,b) => b-a)[0] : null;
-      const state = freshness(latest);
-      const sell = entry && Number(entry.sell_price_min) > 0 ? formatSilver(Number(entry.sell_price_min)) : "—";
-      const buy = entry && Number(entry.buy_price_max) > 0 ? formatSilver(Number(entry.buy_price_max)) : "—";
-      tr.innerHTML = '<td class="city"></td><td class="sell"></td><td class="buy"></td><td class="empty">API非提供</td><td><span class="state"></span></td>';
-      tr.querySelector(".city").textContent = city;
-      tr.querySelector(".sell").textContent = sell;
-      tr.querySelector(".buy").textContent = buy;
-      const stateEl = tr.querySelector(".state");
-      stateEl.textContent = entry && latest ? state.label : "未観測";
-      stateEl.className = "state " + (entry && latest ? state.className : "unknown");
-      rows.append(tr);
+      for (const quality of qualities) {
+        const entry = byCityQuality.get(city + "|" + quality);
+        const tr = document.createElement("tr");
+        const cityCell = document.createElement("td");
+        cityCell.className = "city";
+        cityCell.textContent = city;
+        const qualityCell = document.createElement("td");
+        qualityCell.textContent = qualityNames[quality] || ("品質 " + quality);
+        const sellCell = document.createElement("td");
+        sellCell.className = "sell";
+        sellCell.textContent = entry && Number(entry.sell_price_min) > 0
+          ? formatSilver(Number(entry.sell_price_min)) : "—";
+        const buyCell = document.createElement("td");
+        buyCell.className = "buy";
+        buyCell.textContent = entry && Number(entry.buy_price_max) > 0
+          ? formatSilver(Number(entry.buy_price_max)) : "—";
+        const sellDate = entry ? parseDate(entry.sell_price_min_date) : null;
+        const buyDate = entry ? parseDate(entry.buy_price_max_date) : null;
+        const sellState = freshness(sellDate);
+        const buyState = freshness(buyDate);
+        const sellDateCell = document.createElement("td");
+        const sellStateEl = document.createElement("span");
+        sellStateEl.className = "state " + (sellDate ? sellState.className : "unknown");
+        sellStateEl.textContent = sellDate ? sellState.label : "未観測";
+        sellDateCell.append(sellStateEl);
+        const buyDateCell = document.createElement("td");
+        const buyStateEl = document.createElement("span");
+        buyStateEl.className = "state " + (buyDate ? buyState.className : "unknown");
+        buyStateEl.textContent = buyDate ? buyState.label : "未観測";
+        buyDateCell.append(buyStateEl);
+        tr.append(cityCell, qualityCell, sellCell, buyCell, sellDateCell, buyDateCell);
+        rows.append(tr);
+      }
     }
-    searchMessage.textContent = itemId + " の価格を表示中。取得元：AODP Asia API。";
+    searchMessage.textContent = itemId + " の価格を品質別に表示中。取得元：AODP Asia API。";
   } catch (error) {
     rows.replaceChildren();
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 5;
+    td.colSpan = 6;
     td.textContent = error.message + " データを0として扱わず、未取得のまま表示しています。";
     tr.append(td);
     rows.append(tr);
