@@ -153,3 +153,7 @@
 .orderbook-toggle[aria-expanded="true"] .orderbook-toggle-icon{transform:rotate(45deg);background:#f5f7f9}
 .orderbook-content{margin-top:18px}
 .orderbook-content[hidden]{display:none}
+
+.orderbook-sides.single{grid-template-columns:1fr}
+.orderbook-toggle{position:relative;z-index:2;pointer-events:auto;touch-action:manipulation}
+.orderbook-toggle *{pointer-events:none}
