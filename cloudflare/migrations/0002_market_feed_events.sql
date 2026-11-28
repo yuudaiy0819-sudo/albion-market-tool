@@ -27,3 +27,6 @@ CREATE INDEX IF NOT EXISTS idx_market_feed_location_received
 
 CREATE INDEX IF NOT EXISTS idx_market_feed_type_received
   ON market_feed_events(event_type, received_at);
+
+CREATE INDEX IF NOT EXISTS idx_market_feed_albion_received
+  ON market_feed_events(albion_id, received_at);
