@@ -581,6 +581,7 @@ const monitorMessage = document.querySelector("#monitor-message");
 const monitorAddButton = document.querySelector("#monitor-add-rule");
 const monitorRefreshButton = document.querySelector("#monitor-refresh");
 const monitorPollButton = document.querySelector("#monitor-poll-now");
+const monitorTestSpreadButton = document.querySelector("#monitor-test-spread");
 const monitorRulesContainer = document.querySelector("#monitor-rules");
 
 function updateMonitorItemDisplay() {
@@ -618,6 +619,7 @@ function setMonitorConnected(connected, state = "idle") {
   monitorAddButton.disabled = !connected || !selectedItem;
   monitorRefreshButton.disabled = !connected;
   monitorPollButton.disabled = !connected;
+  monitorTestSpreadButton.disabled = !connected;
   monitorConnectButton.classList.remove("is-loading", "is-connected", "is-error");
   if (state === "loading") {
     monitorConnectButton.textContent = "接続中…";
@@ -744,6 +746,19 @@ monitorRefreshButton.addEventListener("click", async () => {
     monitorMessage.textContent = error.message;
   } finally {
     monitorRefreshButton.disabled = false;
+  }
+});
+
+monitorTestSpreadButton.addEventListener("click", async () => {
+  monitorTestSpreadButton.disabled = true;
+  monitorMessage.textContent = "テスト用の架空価格でDiscord通知を送っています…";
+  try {
+    const result = await monitorRequest("/admin/test-spread", { method: "POST" });
+    monitorMessage.textContent = "テスト通知をDiscordへ送信しました。実際の市場価格・監視履歴には影響していません。";
+  } catch (error) {
+    monitorMessage.textContent = error.message;
+  } finally {
+    monitorTestSpreadButton.disabled = false;
   }
 });
 
