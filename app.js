@@ -17,6 +17,8 @@ const historyCityAllButton = document.querySelector("#history-city-all");
 const historyCityClearButton = document.querySelector("#history-city-clear");
 const HISTORY_CITY_COLORS = ["#2563eb", "#0f9f8f", "#d18a22", "#7c65c1", "#d15d76", "#64748b", "#0891b2", "#8b5e34"];
 const historyChart = document.querySelector("#history-chart");
+const historyVolumeSummary = document.querySelector("#history-volume-summary");
+const historyVolumeMessage = document.querySelector("#history-volume-message");
 const historyLegend = document.querySelector("#history-legend");
 const historyMessage = document.querySelector("#history-message");
 const historyRangeButtons = document.querySelectorAll("[data-history-range]");
@@ -287,6 +289,51 @@ function selectedHistoryCities() {
   return [...historyCityInputs].filter(input => input.checked).map(input => input.dataset.historyCity);
 }
 
+
+function renderVolumeSummary(series, range) {
+  if (!historyVolumeSummary || !historyVolumeMessage) return;
+  historyVolumeSummary.replaceChildren();
+  const totals = series.map(item => {
+    const knownPoints = item.points.filter(point => point.countKnown);
+    return {
+      city: item.city,
+      count: knownPoints.length ? knownPoints.reduce((sum, point) => sum + point.count, 0) : null,
+      buckets: knownPoints.length
+    };
+  }).sort((a, b) => (b.count ?? -1) - (a.count ?? -1));
+  const available = totals.filter(item => item.count !== null);
+  if (!available.length) {
+    historyVolumeSummary.textContent = "この期間の数量データはありません。";
+    historyVolumeSummary.className = "history-volume-summary history-empty";
+    historyVolumeMessage.textContent = "数量が未提供・未観測の場合は0個とせず、データなしとして表示します。";
+    return;
+  }
+  historyVolumeSummary.className = "history-volume-summary";
+  const max = Math.max(1, ...available.map(item => item.count));
+  for (const item of totals) {
+    const row = document.createElement("div");
+    row.className = "history-volume-row";
+    const city = document.createElement("strong");
+    city.className = "history-volume-city";
+    city.textContent = item.city;
+    const track = document.createElement("div");
+    track.className = "history-volume-track";
+    const bar = document.createElement("span");
+    bar.className = "history-volume-bar";
+    bar.style.width = item.count === null ? "0%" : Math.max(item.count > 0 ? 1 : 0, item.count / max * 100) + "%";
+    track.append(bar);
+    const amount = document.createElement("span");
+    amount.className = "history-volume-count";
+    amount.textContent = item.count === null ? "データなし" : Math.round(item.count).toLocaleString("ja-JP") + " 個";
+    row.append(city, track, amount);
+    historyVolumeSummary.append(row);
+  }
+  const granularity = range === "24h" ? "1時間ごと" : range === "7d" ? "6時間ごと" : "24時間ごと";
+  historyVolumeMessage.textContent = "AODP履歴の item_count を集計 · " + granularity
+    + "の数量を期間内で合計 · 品質 " + (historyQuality.value === "all" ? "全品質" : historyQuality.value)
+    + "。全取引の完全な記録ではなく、AODPに届いた観測データに基づく目安です。";
+}
+
 function renderHistory(payload, range, timeScale) {
   historyChart.replaceChildren();
   historyLegend.replaceChildren();
@@ -306,14 +353,19 @@ function renderHistory(payload, range, timeScale) {
       const date = parseHistoryTimestamp(point.timestamp ?? point.Timestamp);
       const price = Number(point.avg_price ?? point.AveragePrice);
       if (!date || !Number.isFinite(price) || price <= 0) continue;
-      const countValue = Number(point.item_count ?? point.ItemCount ?? 0);
-      const weight = countValue > 0 ? countValue : 1;
+      const rawCount = point.item_count ?? point.ItemCount;
+      const countValue = rawCount == null ? null : Number(rawCount);
+      const countKnown = countValue !== null && Number.isFinite(countValue) && countValue >= 0;
+      const weight = countKnown && countValue > 0 ? countValue : 1;
       const time = date.getTime();
-      if (!cityPoints.has(time)) cityPoints.set(time, { weightedPrice: 0, weight: 0, count: 0 });
+      if (!cityPoints.has(time)) cityPoints.set(time, { weightedPrice: 0, weight: 0, count: 0, countKnown: false });
       const aggregate = cityPoints.get(time);
       aggregate.weightedPrice += price * weight;
       aggregate.weight += weight;
-      aggregate.count += countValue > 0 ? countValue : 0;
+      if (countKnown) {
+        aggregate.count += countValue;
+        aggregate.countKnown = true;
+      }
     }
   }
 
@@ -324,7 +376,7 @@ function renderHistory(payload, range, timeScale) {
     city,
     cityIndex,
     points: [...points.entries()]
-      .map(([time, value]) => ({ time, price: value.weightedPrice / value.weight, count: value.count }))
+      .map(([time, value]) => ({ time, price: value.weightedPrice / value.weight, count: value.count, countKnown: value.countKnown }))
       .filter(point => point.time >= minTime && point.time <= now + 3600000)
       .sort((a,b) => a.time - b.time)
   })).filter(item => item.points.length);
@@ -333,12 +385,14 @@ function renderHistory(payload, range, timeScale) {
     historyChart.textContent = "比較する都市を1つ以上選択してください。";
     historyChart.className = "history-chart history-empty";
     historyMessage.textContent = "都市のチェックを入れると価格履歴を表示します。";
+    renderVolumeSummary([], historyRange);
     return;
   }
   if (!series.length) {
     historyChart.textContent = "選択した都市・品質では、期間内の履歴データが見つかりませんでした。";
     historyChart.className = "history-chart history-empty";
     historyMessage.textContent = "未観測の期間があります。データがないことは、取引や注文がなかったことを意味しません。";
+    renderVolumeSummary([], range);
     return;
   }
 
@@ -418,6 +472,7 @@ function renderHistory(payload, range, timeScale) {
     }
   }
   historyChart.append(svg);
+  renderVolumeSummary(series, range);
   const observedCount = series.reduce((sum, item) => sum + item.points.length, 0);
   const latestObserved = Math.max(...series.flatMap(item => item.points.map(point => point.time)));
   const latestLabel = new Date(latestObserved).toLocaleString("ja-JP");
@@ -443,6 +498,8 @@ async function loadHistory() {
   const itemId = selectedItemId();
   historyChart.className = "history-chart history-empty";
   historyChart.textContent = "価格履歴を取得しています…";
+  if (historyVolumeSummary) { historyVolumeSummary.textContent = "数量データを取得しています…"; historyVolumeSummary.className = "history-volume-summary history-empty"; }
+  if (historyVolumeMessage) historyVolumeMessage.textContent = "";
   historyLegend.replaceChildren();
   if (!cities.length) {
     historyChart.textContent = "比較する都市を1つ以上選択してください。";
