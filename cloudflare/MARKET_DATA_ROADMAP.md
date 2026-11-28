@@ -1,5 +1,18 @@
 # Market data reliability and coverage roadmap
 
+## Implementation status (2026-11-28)
+
+Repository scaffolding is now committed:
+- Standalone Node.js NATS collector for the two deduplicated Asia market subjects.
+- Upstream-shaped validation for order and market-history payloads.
+- JSONL disk spool, bounded HTTPS batches, retries, and restart recovery.
+- Authenticated Worker ingestion route with request-size and batch limits.
+- D1 migration for raw observed feed events, including source and receive timestamps.
+- Public aggregate `/market-feed-health` endpoint.
+- GitHub Actions checks for collector tests, Worker syntax, and D1 migration SQL.
+
+**Not running yet:** the Worker code has not been deployed, the D1 migration has not been applied, `MARKET_INGEST_TOKEN` has not been configured, and no always-on collector host has been provisioned. No market feed data is being collected by this new pipeline yet.
+
 ## Goal
 
 Build an Asia-market observatory that explains price movement, supply, demand signals, and data coverage without presenting incomplete observations as complete market truth.
