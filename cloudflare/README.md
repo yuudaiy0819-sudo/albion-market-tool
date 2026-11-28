@@ -26,6 +26,7 @@ This folder contains the Cloudflare Worker backend for Albion Market Tool.
 - [x] Compare spread-alert prices with the previous 24 hours of distinct AODP source timestamps
 - [x] Include historical price-consistency context in Discord spread alerts
 - [x] Daily Discord health report at 08:00 JST (23:00 UTC)
+- [x] Public `/market-health` endpoint with city-level aggregate freshness only (no item names or IDs)
 - [x] Check source-price freshness for the buy/sell sides of each enabled watch rule; flag missing or older-than-3-hour observations
 
 ## Protected endpoints
