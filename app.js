@@ -30,18 +30,34 @@ const ORDERBOOK_API = "https://east.albion-online-data.com/api/v2/stats/orderboo
 const orderbookGrid = document.querySelector("#orderbook-grid");
 const orderbookMessage = document.querySelector("#orderbook-message");
 const orderbookQuality = document.querySelector("#orderbook-quality");
+const orderbookView = document.querySelector("#orderbook-view");
 const orderbookRefresh = document.querySelector("#orderbook-refresh");
 const orderbookToggle = document.querySelector("#orderbook-toggle");
 const orderbookContent = document.querySelector("#orderbook-content");
-orderbookToggle.addEventListener("click", () => {
+function toggleOrderbookPanel() {
   const expanded = orderbookToggle.getAttribute("aria-expanded") === "true";
   orderbookToggle.setAttribute("aria-expanded", String(!expanded));
   orderbookContent.hidden = expanded;
   const hint = orderbookToggle.querySelector(".orderbook-toggle-hint");
-  hint.textContent = expanded ? "クリックして注文板を表示" : "クリックして閉じる";
+  if (hint) hint.textContent = expanded ? "クリックして注文板を表示" : "クリックして閉じる";
+}
+orderbookToggle.addEventListener("click", (event) => {
+  event.preventDefault();
+  toggleOrderbookPanel();
 });
+// 文字・アイコン部分を押した場合も確実に開閉できるよう委譲でも拾う
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("#orderbook-toggle");
+  if (button && button !== orderbookToggle) return;
+  if (button === orderbookToggle && event.target !== orderbookToggle) {
+    // ボタン自身のクリック処理が発火しない環境向けの補助
+  }
+}, true);
 
 let orderbookRequestId = 0;
+let latestOrderbookPayload = null;
+let latestOrderbookItemId = "";
+let latestOrderbookQuality = "";
 
 function orderbookArray(record, keys) {
   for (const key of keys) {
@@ -113,25 +129,31 @@ function renderOrderbook(payload, itemId, quality) {
       continue;
     }
     rendered++;
+    const mode = orderbookView ? orderbookView.value : "sell";
     const columns = document.createElement("div");
-    columns.className = "orderbook-sides";
-    const sellSide = document.createElement("section");
-    sellSide.className = "orderbook-side sell";
-    const sellTitle = document.createElement("h4");
-    sellTitle.textContent = "売り注文（安い順）";
-    const sellLevels = document.createElement("div");
-    sellLevels.className = "orderbook-levels";
-    renderOrderLevels(sellLevels, orderbookArray(record, ["sell_orders", "sellOrders", "asks", "sell"]), "sell");
-    sellSide.append(sellTitle, sellLevels);
-    const buySide = document.createElement("section");
-    buySide.className = "orderbook-side buy";
-    const buyTitle = document.createElement("h4");
-    buyTitle.textContent = "買い注文（高い順）";
-    const buyLevels = document.createElement("div");
-    buyLevels.className = "orderbook-levels";
-    renderOrderLevels(buyLevels, orderbookArray(record, ["buy_orders", "buyOrders", "bids", "buy"]), "buy");
-    buySide.append(buyTitle, buyLevels);
-    columns.append(sellSide, buySide);
+    columns.className = "orderbook-sides" + (mode === "both" ? "" : " single");
+    if (mode === "sell" || mode === "both") {
+      const sellSide = document.createElement("section");
+      sellSide.className = "orderbook-side sell";
+      const sellTitle = document.createElement("h4");
+      sellTitle.textContent = "売り注文（安い順）";
+      const sellLevels = document.createElement("div");
+      sellLevels.className = "orderbook-levels";
+      renderOrderLevels(sellLevels, orderbookArray(record, ["sell_orders", "sellOrders", "asks", "sell"]), "sell");
+      sellSide.append(sellTitle, sellLevels);
+      columns.append(sellSide);
+    }
+    if (mode === "buy" || mode === "both") {
+      const buySide = document.createElement("section");
+      buySide.className = "orderbook-side buy";
+      const buyTitle = document.createElement("h4");
+      buyTitle.textContent = "買い注文（高い順）";
+      const buyLevels = document.createElement("div");
+      buyLevels.className = "orderbook-levels";
+      renderOrderLevels(buyLevels, orderbookArray(record, ["buy_orders", "buyOrders", "bids", "buy"]), "buy");
+      buySide.append(buyTitle, buyLevels);
+      columns.append(buySide);
+    }
     card.append(columns);
     orderbookGrid.append(card);
   }
@@ -155,6 +177,9 @@ async function loadOrderbook() {
     if (!response.ok) throw new Error("注文板APIが応答しませんでした（HTTP " + response.status + "）。");
     const payload = await response.json();
     if (requestId !== orderbookRequestId) return;
+    latestOrderbookPayload = payload;
+    latestOrderbookItemId = itemId;
+    latestOrderbookQuality = quality;
     renderOrderbook(payload, itemId, quality);
   } catch (error) {
     if (requestId !== orderbookRequestId) return;
@@ -752,6 +777,9 @@ for (const control of [tierSelect, enchantSelect, qualitySelect]) {
   });
 }
 orderbookQuality.addEventListener("change", loadOrderbook);
+orderbookView.addEventListener("change", () => {
+  if (latestOrderbookPayload) renderOrderbook(latestOrderbookPayload, latestOrderbookItemId, latestOrderbookQuality);
+});
 orderbookRefresh.addEventListener("click", loadOrderbook);
 historyQuality.addEventListener("change", loadHistory);
 for (const input of historyCityInputs) input.addEventListener("change", loadHistory);
