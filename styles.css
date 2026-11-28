@@ -181,3 +181,5 @@
 @media(max-width:700px){.favorite-dashboard-heading{align-items:flex-start;flex-direction:column}.favorite-dashboard-heading button{width:100%}}
 
 .favorite-dashboard-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.favorite-dashboard-actions label{display:flex;align-items:center;gap:8px;color:#606a76;font-size:11px}.favorite-dashboard-actions select{height:36px;max-width:220px;border:1px solid #e1e4e8;border-radius:7px;background:#fff;padding:0 25px 0 9px;color:#242a32;font:inherit;font-size:11px}@media(max-width:700px){.favorite-dashboard-actions{width:100%;flex-direction:column;align-items:stretch}.favorite-dashboard-actions label{justify-content:space-between}.favorite-dashboard-actions select{flex:1;max-width:none}.favorite-dashboard-actions button{width:100%}}
+
+.favorite-movement-panel{margin-top:18px}.favorite-movement-change{font-weight:700;white-space:nowrap}.favorite-movement-change.up{color:#16834a}.favorite-movement-change.down{color:#c04444}.favorite-movement-change.neutral,.favorite-movement-missing{color:#7b8490}.favorite-movement-missing{font-size:12px}@media(max-width:700px){.favorite-movement-table{min-width:680px}}
