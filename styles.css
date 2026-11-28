@@ -204,3 +204,19 @@
 .item-recipe-row strong{font-size:11px;color:#303741;white-space:nowrap}
 .item-detail-source{padding-top:8px;border-top:1px solid #edf0f2;color:#929aa4;font-size:10px}
 @media(max-width:650px){.item-detail-panel{padding:12px}.item-detail-heading{flex-direction:column}.item-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.item-recipe-list{grid-template-columns:1fr}}
+
+
+/* Compact hamburger navigation */
+.topbar{position:sticky;top:0;z-index:1000}
+.menu-toggle{width:40px;height:40px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;border:1px solid #e4e8ed;border-radius:9px;background:#fff;cursor:pointer;flex:none}
+.menu-toggle span{display:block;width:18px;height:2px;border-radius:2px;background:#344054}
+.site-menu[hidden],.menu-backdrop[hidden]{display:none}
+.site-menu{position:fixed;top:62px;left:16px;z-index:1002;width:min(310px,calc(100vw - 32px));padding:12px;background:#fff;border:1px solid #e6e9ee;border-radius:13px;box-shadow:0 14px 40px rgba(20,30,45,.16);display:grid;gap:3px}
+.site-menu-heading{display:flex;align-items:center;justify-content:space-between;padding:4px 5px 10px;border-bottom:1px solid #edf0f3;margin-bottom:5px;color:#27313c;font-size:14px}
+.site-menu-heading button{width:30px;height:30px;border:0;border-radius:7px;background:#f3f5f7;color:#4b5563;font-size:22px;cursor:pointer}
+.site-menu a{display:block;padding:11px 10px;border-radius:8px;color:#344054;text-decoration:none;font-size:13px}
+.site-menu a:hover,.site-menu a:focus-visible{background:#f2f6fa;outline:none}
+.menu-backdrop{position:fixed;inset:0;z-index:1001;border:0;background:rgba(15,23,42,.22);cursor:default}
+body.menu-open{overflow:hidden}
+#search-panel,#market-panel,#orderbook-panel,#history-panel,#favorite-dashboard-panel,#favorite-movement-panel,#favorites-panel,#monitor-panel{scroll-margin-top:82px}
+@media(max-width:640px){.topbar{gap:10px}.site-menu{top:58px;left:10px;width:min(330px,calc(100vw - 20px))}.menu-toggle{width:38px;height:38px}}
