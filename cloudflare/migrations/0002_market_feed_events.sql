@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS market_feed_events (
   event_type TEXT NOT NULL CHECK (event_type IN ('market_order', 'market_history')),
   source_subject TEXT NOT NULL,
   received_at TEXT NOT NULL,
+  collector_received_at TEXT,
   source_time TEXT,
   item_id TEXT,
   albion_id INTEGER,
