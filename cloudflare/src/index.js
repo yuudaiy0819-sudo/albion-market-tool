@@ -259,42 +259,138 @@ async function sendDailyHealthReport(env) {
   let observations24h = 0;
   let alerts24h = 0;
   let latestObservation = "記録なし";
+  let checks = [];
+  const citySummary = new Map();
   let detail = "";
 
   try {
     const [rules, observations, alerts, latest] = await Promise.all([
-      env.DB.prepare("SELECT COUNT(*) AS count FROM watch_rules WHERE enabled = 1").first(),
-      env.DB.prepare("SELECT COUNT(*) AS count FROM price_observations WHERE datetime(observed_at) >= datetime('now', '-24 hours')").first(),
-      env.DB.prepare("SELECT COUNT(*) AS count FROM alert_events WHERE datetime(created_at) >= datetime('now', '-24 hours')").first(),
+      getEnabledRules(env.DB),
+      env.DB.prepare(
+        \`SELECT item_id, city, quality,
+                MAX(observed_at) AS latest_observed_at,
+                MAX(sell_price_min_date) AS latest_sell_source_at,
+                MAX(buy_price_max_date) AS latest_buy_source_at
+         FROM price_observations
+         WHERE datetime(observed_at) >= datetime('now', '-24 hours')
+         GROUP BY item_id, city, quality\`
+      ).all(),
+      env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM alert_events WHERE datetime(created_at) >= datetime('now', '-24 hours')"
+      ).first(),
       env.DB.prepare("SELECT MAX(observed_at) AS latest FROM price_observations").first()
     ]);
-    enabledRules = Number(rules?.count || 0);
-    observations24h = Number(observations?.count || 0);
+
+    enabledRules = rules.length;
+    observations24h = (observations.results || []).length;
     alerts24h = Number(alerts?.count || 0);
     latestObservation = latest?.latest || "記録なし";
-    if (observations24h === 0 && enabledRules > 0) {
-      databaseStatus = "要確認";
-      detail = "監視ルールがあるのに、過去24時間の価格観測がありません。";
+
+    const observationByKey = new Map(
+      (observations.results || []).map(row => [
+        \`${row.item_id}|${row.city}|${Number(row.quality)}\`,
+        row
+      ])
+    );
+    const now = Date.now();
+    const staleAfterMs = 3 * 60 * 60 * 1000;
+
+    for (const rule of rules) {
+      const expectedSides = [
+        { city: rule.buy_city, sourceField: "latest_sell_source_at", side: "仕入れ側の売却注文" },
+        { city: rule.sell_city, sourceField: "latest_buy_source_at", side: "売却側の購入注文" }
+      ];
+
+      for (const expected of expectedSides) {
+        const key = \`${rule.item_id}|${expected.city}|${Number(rule.quality)}\`;
+        const row = observationByKey.get(key);
+        const rawDate = row?.[expected.sourceField];
+        const timestamp = rawDate && !String(rawDate).startsWith("0001-01-01")
+          ? Date.parse(rawDate)
+          : NaN;
+        let state = "正常";
+        let ageMinutes = null;
+
+        if (!Number.isFinite(timestamp) || timestamp > now + 5 * 60 * 1000) {
+          state = "未観測";
+        } else {
+          ageMinutes = Math.max(0, Math.round((now - timestamp) / 60000));
+          if (now - timestamp > staleAfterMs) state = "古い";
+        }
+
+        checks.push({
+          itemName: rule.item_name || rule.item_id,
+          city: expected.city,
+          quality: Number(rule.quality),
+          side: expected.side,
+          state,
+          ageMinutes
+        });
+
+        if (!citySummary.has(expected.city)) {
+          citySummary.set(expected.city, { normal: 0, stale: 0, missing: 0 });
+        }
+        const summary = citySummary.get(expected.city);
+        if (state === "正常") summary.normal++;
+        else if (state === "古い") summary.stale++;
+        else summary.missing++;
+      }
+    }
+
+    if (enabledRules === 0) {
+      databaseStatus = "監視対象なし";
+      detail = "有効な監視ルールがないため、価格データの鮮度を判定できません。";
+    } else {
+      const staleCount = checks.filter(check => check.state === "古い").length;
+      const missingCount = checks.filter(check => check.state === "未観測").length;
+      if (staleCount > 0 || missingCount > 0) {
+        databaseStatus = "要確認";
+        detail = \`監視対象 ${checks.length}件のうち、古いデータ ${staleCount}件・未観測 ${missingCount}件です。\`;
+      }
     }
   } catch (error) {
     databaseStatus = "異常";
     detail = "D1集計に失敗しました: " + error.message;
   }
 
-  const status = databaseStatus === "正常" ? "✅" : "⚠️";
-  const message =
-    `🩺 **Albion Market Tool 日次ヘルスレポート**\\n` +
-    `判定：${status} ${databaseStatus}\\n` +
-    `確認時刻：${checkedAt}\\n` +
-    `有効な監視ルール：${enabledRules}件\\n` +
-    `過去24時間の価格観測：${observations24h}件\\n` +
-    `過去24時間の通知：${alerts24h}件\\n` +
-    `最終観測記録：${latestObservation}\\n` +
-    (detail ? `注意：${detail}\\n` : "") +
-    `Worker・DBの定期集計レポートです。価格観測件数はAODPの観測データであり、全市場データを保証するものではありません。`;
+  const status = databaseStatus === "正常" ? "✅" : databaseStatus === "監視対象なし" ? "ℹ️" : "⚠️";
+  const cityLines = [...citySummary.entries()].map(([city, counts]) =>
+    \`${city}：正常 ${counts.normal} / 古い ${counts.stale} / 未観測 ${counts.missing}\`
+  );
+  const warningLines = checks
+    .filter(check => check.state !== "正常")
+    .slice(0, 8)
+    .map(check =>
+      \`・${check.itemName} T${check.quality} / ${check.city} / ${check.side}：${check.state}\` +
+      (check.ageMinutes !== null ? \`（約${check.ageMinutes}分前）\` : "")
+    );
+
+  const message = [
+    "🩺 **Albion Market Tool 日次ヘルスレポート**",
+    \`判定：${status} ${databaseStatus}\`,
+    \`確認時刻：${checkedAt}\`,
+    \`有効な監視ルール：${enabledRules}件\`,
+    \`過去24時間の価格観測：${observations24h}件\`,
+    \`過去24時間の通知：${alerts24h}件\`,
+    \`最終観測記録：${latestObservation}\`,
+    "【監視対象の都市別データ鮮度】",
+    ...(cityLines.length ? cityLines : ["対象都市なし"]),
+    ...(detail ? [\`注意：${detail}\`] : []),
+    ...(warningLines.length ? ["【要確認の対象】", ...warningLines] : []),
+    "※監視ルールに登録されたアイテム・都市のみを確認しています。AODPの観測データであり、全市場データや全取引を保証するものではありません。"
+  ].join("\n");
 
   await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
-  return { sent: true, databaseStatus, enabledRules, observations24h, alerts24h };
+  return {
+    sent: true,
+    databaseStatus,
+    enabledRules,
+    observations24h,
+    alerts24h,
+    checkedSides: checks.length,
+    staleSides: checks.filter(check => check.state === "古い").length,
+    missingSides: checks.filter(check => check.state === "未観測").length
+  };
 }
 
 async function pollMarketData(env) {
