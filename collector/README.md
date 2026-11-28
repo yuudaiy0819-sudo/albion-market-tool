@@ -34,7 +34,7 @@ For deployment, build the included Dockerfile and configure the same environment
 ## Operational limits
 
 - AODP NATS is a live, non-replay feed; messages from before a subscriber connects are not backfilled.
-- The collector retries failed HTTPS batches and refuses to silently discard a full in-memory queue. It is an initial pilot, not yet a durable disk-spooled ingestion service.
+- The collector writes each accepted message to a JSONL disk spool before forwarding it. Successful batches are removed from the spool; failed batches remain for retry/restart. Mount persistent storage at `/data` in the container host.
 - NATS deduplication is over a rolling five-minute window. The collector and database apply a second idempotency key per payload/time bucket.
 - A market order disappearing from the feed is not proof of a sale; it may expire or be cancelled.
 - Market-history points are observations/aggregates, not a complete transaction ledger.
