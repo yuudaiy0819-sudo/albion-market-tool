@@ -45,14 +45,6 @@ orderbookToggle.addEventListener("click", (event) => {
   event.preventDefault();
   toggleOrderbookPanel();
 });
-// 文字・アイコン部分を押した場合も確実に開閉できるよう委譲でも拾う
-document.addEventListener("click", (event) => {
-  const button = event.target.closest("#orderbook-toggle");
-  if (button && button !== orderbookToggle) return;
-  if (button === orderbookToggle && event.target !== orderbookToggle) {
-    // ボタン自身のクリック処理が発火しない環境向けの補助
-  }
-}, true);
 
 let orderbookRequestId = 0;
 let latestOrderbookPayload = null;
