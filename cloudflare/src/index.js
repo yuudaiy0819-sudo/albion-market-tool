@@ -28,7 +28,7 @@ function json(data, status = 200) {
 function isAuthorized(request, env) {
   return Boolean(
     env.ADMIN_TOKEN &&
-    request.headers.get("authorization") === \`Bearer \${env.ADMIN_TOKEN}\`
+    request.headers.get("authorization") === `Bearer ${env.ADMIN_TOKEN}`
   );
 }
 
@@ -41,7 +41,7 @@ async function sendDiscord(webhookUrl, content) {
 
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(\`Discord webhook failed (\${response.status}): \${detail.slice(0, 300)}\`);
+    throw new Error(`Discord webhook failed (${response.status}): ${detail.slice(0, 300)}`);
   }
 }
 
@@ -92,7 +92,7 @@ async function pollMarketData(env) {
   for (let offset = 0; offset < itemIds.length; offset += 20) {
     const batchIds = itemIds.slice(offset, offset + 20);
     const itemPath = batchIds.map(id => encodeURIComponent(id)).join(",");
-    const apiUrl = new URL(\`\${AODP_BASE}/stats/prices/\${itemPath}.json\`);
+    const apiUrl = new URL(`${AODP_BASE}/stats/prices/${itemPath}.json`);
     apiUrl.searchParams.set("locations", cities.join(","));
     apiUrl.searchParams.set("qualities", qualities.join(","));
 
@@ -102,12 +102,12 @@ async function pollMarketData(env) {
         headers: { "accept": "application/json" }
       });
     } catch (error) {
-      errors.push(\`AODP request failed: \${error.message}\`);
+      errors.push(`AODP request failed: ${error.message}`);
       continue;
     }
 
     if (!response.ok) {
-      errors.push(\`AODP returned HTTP \${response.status}\`);
+      errors.push(`AODP returned HTTP ${response.status}`);
       continue;
     }
 
@@ -133,10 +133,10 @@ async function pollMarketData(env) {
 
     for (const row of relevant) {
       await env.DB.prepare(
-        \`INSERT INTO price_observations
+        `INSERT INTO price_observations
           (item_id, city, quality, sell_price_min, buy_price_max,
            sell_price_min_date, buy_price_max_date, observed_at, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)\`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         row.item_id,
         row.city,
@@ -231,9 +231,9 @@ export default {
       }
 
       await env.DB.prepare(
-        \`INSERT INTO watch_rules
+        `INSERT INTO watch_rules
           (id, item_id, item_name, quality, buy_city, sell_city, min_spread, enabled)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1)\`
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`
       ).bind(
         id,
         item_id,
