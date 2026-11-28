@@ -372,10 +372,196 @@ function renderFavorites() {
       saveFavorites(readFavorites().filter((entry) => entry.itemId !== saved.itemId));
       renderFavorites();
       updateFavoriteButton();
+      refreshFavoriteDashboard();
     });
     itemRow.append(loadButton, removeButton);
     favoriteList.append(itemRow);
   }
+}
+
+
+const FAVORITE_PRICE_HISTORY_KEY = "albion-market-tool-favorite-price-history-v1";
+const favoriteDashboardRows = document.querySelector("#favorite-dashboard-rows");
+const favoriteDashboardStatus = document.querySelector("#favorite-dashboard-status");
+const favoriteDashboardRefresh = document.querySelector("#favorite-dashboard-refresh");
+
+function readFavoritePriceHistory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FAVORITE_PRICE_HISTORY_KEY) || "{}");
+    return saved && typeof saved === "object" ? saved : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function saveFavoritePriceHistory(history) {
+  try {
+    localStorage.setItem(FAVORITE_PRICE_HISTORY_KEY, JSON.stringify(history));
+  } catch (error) {
+    if (favoriteDashboardStatus) favoriteDashboardStatus.textContent = "価格比較は表示できますが、前回比を保存できませんでした。";
+  }
+}
+
+function dashboardCell(text, className) {
+  const cell = document.createElement("td");
+  if (className) cell.className = className;
+  cell.textContent = text;
+  return cell;
+}
+
+async function openFavoriteFromDashboard(saved) {
+  try {
+    const items = await loadCatalog();
+    const found = items.find(entry => entry.UniqueName === saved.catalogId);
+    if (!found) throw new Error("アイテムが見つかりませんでした。");
+    selectedItem = found;
+    tierSelect.value = saved.tier;
+    enchantSelect.value = saved.enchant;
+    qualitySelect.value = saved.quality;
+    searchInput.value = saved.name;
+    showSelectedItem();
+    updateFavoriteButton();
+    loadPrices();
+    loadHistory();
+    loadOrderbook();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (error) {
+    favoriteDashboardStatus.textContent = error.message;
+  }
+}
+
+function renderFavoriteDashboardRow(saved, index) {
+  const tr = document.createElement("tr");
+  const itemCell = document.createElement("td");
+  const itemWrap = document.createElement("div");
+  itemWrap.className = "favorite-dashboard-item";
+  const image = document.createElement("img");
+  image.src = "https://render.albiononline.com/v1/item/" + saved.itemId + ".png?quality=" + (saved.quality === "all" ? "1" : saved.quality);
+  image.alt = "";
+  image.loading = "lazy";
+  image.onerror = () => { image.hidden = true; };
+  const itemText = document.createElement("div");
+  const name = document.createElement("button");
+  name.type = "button";
+  name.className = "favorite-dashboard-name";
+  name.textContent = saved.name;
+  name.addEventListener("click", () => openFavoriteFromDashboard(saved));
+  const id = document.createElement("span");
+  id.className = "favorite-dashboard-id";
+  id.textContent = saved.itemId + " · 品質 " + saved.quality;
+  itemText.append(name, id);
+  itemWrap.append(image, itemText);
+  itemCell.append(itemWrap);
+  tr.append(itemCell);
+  for (let i = 0; i < 5; i++) tr.append(dashboardCell(i === 4 ? "取得中…" : "—"));
+  favoriteDashboardRows.append(tr);
+  return tr;
+}
+
+function setDashboardPriceCell(cell, price, city, quality) {
+  cell.replaceChildren();
+  if (!price) {
+    cell.textContent = "—";
+    return;
+  }
+  const amount = document.createElement("strong");
+  amount.className = "favorite-dashboard-price";
+  amount.textContent = formatSilver(price.value);
+  const detail = document.createElement("span");
+  detail.className = "favorite-dashboard-city";
+  detail.textContent = city + (quality ? " · Q" + quality : "");
+  cell.append(amount, detail);
+}
+
+async function refreshFavoriteDashboard() {
+  if (!favoriteDashboardRows || !favoriteDashboardStatus) return;
+  const favorites = readFavorites();
+  favoriteDashboardRows.replaceChildren();
+  if (!favorites.length) {
+    favoriteDashboardRows.append(dashboardCell("お気に入りを登録すると、都市別の価格をまとめて表示します。", "empty"));
+    favoriteDashboardRows.firstChild.colSpan = 6;
+    favoriteDashboardStatus.textContent = "お気に入りはまだ登録されていません。";
+    return;
+  }
+  favoriteDashboardRefresh.disabled = true;
+  favoriteDashboardStatus.textContent = favorites.length + "件のお気に入り価格を取得しています…";
+  const history = readFavoritePriceHistory();
+  const rowsByIndex = favorites.map((saved, index) => renderFavoriteDashboardRow(saved, index));
+  let nextIndex = 0;
+  let completed = 0;
+  const worker = async () => {
+    while (nextIndex < favorites.length) {
+      const index = nextIndex++;
+      const saved = favorites[index];
+      const tr = rowsByIndex[index];
+      try {
+        const qualities = saved.quality === "all" ? "1,2,3,4,5" : saved.quality;
+        const url = API_BASE + "/" + encodeURIComponent(saved.itemId) + ".json?locations="
+          + encodeURIComponent(CITIES.join(",")) + "&qualities=" + encodeURIComponent(qualities);
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const data = await response.json();
+        const valid = data.filter(entry => CITIES.includes(entry.city));
+        const sells = valid.filter(entry => Number(entry.sell_price_min) > 0)
+          .map(entry => ({ value:Number(entry.sell_price_min), city:entry.city, quality:entry.quality, date:parseDate(entry.sell_price_min_date) }))
+          .sort((x,y) => x.value-y.value);
+        const buys = valid.filter(entry => Number(entry.buy_price_max) > 0)
+          .map(entry => ({ value:Number(entry.buy_price_max), city:entry.city, quality:entry.quality, date:parseDate(entry.buy_price_max_date) }))
+          .sort((x,y) => y.value-x.value);
+        const bestSell = sells[0] || null;
+        const bestBuy = buys[0] || null;
+        const spread = bestSell && bestBuy ? bestBuy.value-bestSell.value : null;
+        const priceCell = tr.children[1];
+        const buyCell = tr.children[2];
+        const spreadCell = tr.children[3];
+        const changeCell = tr.children[4];
+        const stateCell = tr.children[5];
+        setDashboardPriceCell(priceCell,bestSell,bestSell?.city,bestSell?.quality);
+        setDashboardPriceCell(buyCell,bestBuy,bestBuy?.city,bestBuy?.quality);
+        spreadCell.className = "favorite-dashboard-spread";
+        spreadCell.textContent = spread === null ? "—" : (spread >= 0 ? "+" : "−") + formatSilver(Math.abs(spread));
+        if (bestSell) {
+          const key = saved.itemId + "|" + saved.quality + "|" + bestSell.city + "|sell";
+          const previous = history[key];
+          if (previous && Number.isFinite(Number(previous.value))) {
+            const delta = bestSell.value-Number(previous.value);
+            changeCell.className = "favorite-dashboard-change " + (delta < 0 ? "down" : delta > 0 ? "up" : "neutral");
+            changeCell.textContent = (delta > 0 ? "▲ +" : delta < 0 ? "▼ −" : "± ") + formatSilver(Math.abs(delta));
+          } else {
+            changeCell.className = "favorite-dashboard-change neutral";
+            changeCell.textContent = "比較データなし";
+          }
+        } else {
+          changeCell.className = "favorite-dashboard-change neutral";
+          changeCell.textContent = "未観測";
+        }
+        const dates = [bestSell?.date,bestBuy?.date].filter(Boolean).sort((x,y)=>y-x);
+        const state = freshness(dates[0] || null);
+        stateCell.innerHTML = "";
+        const badge = document.createElement("span");
+        badge.className = "state " + state.className;
+        badge.textContent = bestSell || bestBuy ? state.label : "未観測";
+        stateCell.append(badge);
+        for (const entry of valid) {
+          for (const side of ["sell","buy"]) {
+            const value = Number(side === "sell" ? entry.sell_price_min : entry.buy_price_max);
+            const date = parseDate(side === "sell" ? entry.sell_price_min_date : entry.buy_price_max_date);
+            if (value > 0) history[saved.itemId + "|" + saved.quality + "|" + entry.city + "|" + side] = { value, date:date ? date.toISOString() : null, checkedAt:Date.now() };
+          }
+        }
+      } catch (error) {
+        tr.children[5].textContent = "取得失敗";
+        tr.children[5].className = "state unknown";
+        tr.children[4].textContent = error.message;
+      }
+      completed++;
+      favoriteDashboardStatus.textContent = completed + " / " + favorites.length + " 件の価格を確認しました。前回比はこの端末での前回チェックとの比較です。";
+    }
+  };
+  await Promise.all(Array.from({length:Math.min(4,favorites.length)},worker));
+  saveFavoritePriceHistory(history);
+  favoriteDashboardStatus.textContent = favorites.length + "件の価格を確認しました。前回比はこの端末での前回チェックとの比較です。";
+  favoriteDashboardRefresh.disabled = false;
 }
 
 function toggleFavorite() {
@@ -387,6 +573,7 @@ function toggleFavorite() {
   if (saveFavorites(next)) {
     renderFavorites();
     updateFavoriteButton();
+    refreshFavoriteDashboard();
     searchMessage.textContent = exists ? "お気に入りから削除しました。" : "お気に入りに登録しました！";
   }
 }
@@ -780,6 +967,8 @@ for (const button of historyRangeButtons) {
 }
 renderFavorites();
 updateFavoriteButton();
+refreshFavoriteDashboard();
+favoriteDashboardRefresh.addEventListener("click", refreshFavoriteDashboard);
 
 // Cloudflare-hosted market monitor. The admin token stays in memory only.
 const MONITOR_API = "https://albion-market-tool.yuudai-y0819.workers.dev";
