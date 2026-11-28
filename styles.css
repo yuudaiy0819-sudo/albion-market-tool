@@ -208,8 +208,8 @@
 
 /* Compact hamburger navigation */
 .topbar{position:sticky;top:0;z-index:1000}
-.menu-toggle{width:40px;height:40px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;border:1px solid #e4e8ed;border-radius:9px;background:#fff;cursor:pointer;flex:none}
-.menu-toggle span{display:block;width:18px;height:2px;border-radius:2px;background:#344054}
+.menu-toggle{width:44px;height:44px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;border:1px solid #e4e8ed;border-radius:10px;background:#fff;cursor:pointer;flex:none;visibility:visible;opacity:1}
+.menu-toggle span{display:block;width:25px;height:3px;border-radius:999px;background:#344054;flex:none}
 .site-menu[hidden],.menu-backdrop[hidden]{display:none}
 .site-menu{position:fixed;top:62px;left:16px;z-index:1002;width:min(310px,calc(100vw - 32px));padding:12px;background:#fff;border:1px solid #e6e9ee;border-radius:13px;box-shadow:0 14px 40px rgba(20,30,45,.16);display:grid;gap:3px}
 .site-menu-heading{display:flex;align-items:center;justify-content:space-between;padding:4px 5px 10px;border-bottom:1px solid #edf0f3;margin-bottom:5px;color:#27313c;font-size:14px}
