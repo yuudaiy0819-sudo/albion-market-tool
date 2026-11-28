@@ -99,15 +99,34 @@
         <div>
           <p class="eyebrow">PRICE HISTORY</p>
           <h2 id="history-title">価格履歴</h2>
-          <p class="history-subtitle">売り注文の平均価格の推移</p>
+          <p class="history-subtitle">都市ごとの売り注文平均価格を比較</p>
         </div>
-        <label class="history-city-label">都市
-          <select id="history-city">
-            <option>Bridgewatch</option><option>Fort Sterling</option><option>Lymhurst</option>
-            <option>Martlock</option><option>Thetford</option><option>Caerleon</option>
-            <option>Brecilien</option><option>Black Market</option>
+        <label class="history-quality-label">品質
+          <select id="history-quality">
+            <option value="all">全品質（加重平均）</option>
+            <option value="1">ノーマル</option><option value="2">良好</option>
+            <option value="3">傑出</option><option value="4">エクセレント</option><option value="5">最高傑作</option>
           </select>
         </label>
+      </div>
+      <div class="history-city-picker">
+        <div class="history-city-picker-heading">
+          <span>比較する都市</span>
+          <span class="history-city-actions">
+            <button type="button" id="history-city-all">全選択</button>
+            <button type="button" id="history-city-clear">解除</button>
+          </span>
+        </div>
+        <div class="history-city-options">
+          <label><input type="checkbox" data-history-city="Bridgewatch" checked>Bridgewatch</label>
+          <label><input type="checkbox" data-history-city="Fort Sterling">Fort Sterling</label>
+          <label><input type="checkbox" data-history-city="Lymhurst">Lymhurst</label>
+          <label><input type="checkbox" data-history-city="Martlock" checked>Martlock</label>
+          <label><input type="checkbox" data-history-city="Thetford" checked>Thetford</label>
+          <label><input type="checkbox" data-history-city="Caerleon">Caerleon</label>
+          <label><input type="checkbox" data-history-city="Brecilien">Brecilien</label>
+          <label><input type="checkbox" data-history-city="Black Market">Black Market</label>
+        </div>
       </div>
       <div class="history-toolbar" role="group" aria-label="表示期間">
         <button type="button" class="history-range active" data-history-range="24h">24時間</button>
