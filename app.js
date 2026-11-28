@@ -1117,7 +1117,7 @@ async function loadPrices() {
   rows.replaceChildren();
   const loading = document.createElement("tr");
   const loadingCell = document.createElement("td");
-  loadingCell.colSpan = 6;
+  loadingCell.colSpan = 7;
   loadingCell.textContent = "Asiaサーバーの価格データを取得中…";
   loading.append(loadingCell);
   rows.append(loading);
@@ -1133,6 +1133,22 @@ async function loadPrices() {
       entry
     ]));
     const qualityNames = { "1": "ノーマル", "2": "良好", "3": "傑出", "4": "エクセレント", "5": "最高傑作" };
+    const median = values => {
+      const sorted = values.filter(value => Number.isFinite(value) && value > 0).sort((a,b) => a-b);
+      if (!sorted.length) return null;
+      const middle = Math.floor(sorted.length / 2);
+      return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+    };
+    const medians = new Map();
+    for (const quality of qualities) {
+      const entries = CITIES.map(city => byCityQuality.get(city + "|" + quality)).filter(Boolean);
+      medians.set(quality, {
+        sell: median(entries.map(entry => Number(entry.sell_price_min))),
+        buy: median(entries.map(entry => Number(entry.buy_price_max))),
+        sellCount: entries.filter(entry => Number(entry.sell_price_min) > 0).length,
+        buyCount: entries.filter(entry => Number(entry.buy_price_max) > 0).length
+      });
+    }
     rows.replaceChildren();
     for (const city of CITIES) {
       for (const quality of qualities) {
@@ -1143,14 +1159,14 @@ async function loadPrices() {
         cityCell.textContent = city;
         const qualityCell = document.createElement("td");
         qualityCell.textContent = qualityNames[quality] || ("品質 " + quality);
+        const sellPrice = entry ? Number(entry.sell_price_min) : 0;
+        const buyPrice = entry ? Number(entry.buy_price_max) : 0;
         const sellCell = document.createElement("td");
         sellCell.className = "sell";
-        sellCell.textContent = entry && Number(entry.sell_price_min) > 0
-          ? formatSilver(Number(entry.sell_price_min)) : "—";
+        sellCell.textContent = sellPrice > 0 ? formatSilver(sellPrice) : "—";
         const buyCell = document.createElement("td");
         buyCell.className = "buy";
-        buyCell.textContent = entry && Number(entry.buy_price_max) > 0
-          ? formatSilver(Number(entry.buy_price_max)) : "—";
+        buyCell.textContent = buyPrice > 0 ? formatSilver(buyPrice) : "—";
         const sellDate = entry ? parseDate(entry.sell_price_min_date) : null;
         const buyDate = entry ? parseDate(entry.buy_price_max_date) : null;
         const sellState = freshness(sellDate);
@@ -1165,16 +1181,49 @@ async function loadPrices() {
         buyStateEl.className = "state " + (buyDate ? buyState.className : "unknown");
         buyStateEl.textContent = buyDate ? buyState.label : "未観測";
         buyDateCell.append(buyStateEl);
-        tr.append(cityCell, qualityCell, sellCell, buyCell, sellDateCell, buyDateCell);
+
+        const flags = [];
+        const baseline = medians.get(quality);
+        if (sellPrice > 0 && baseline?.sellCount >= 4 && baseline.sell) {
+          const ratio = sellPrice / baseline.sell;
+          if (ratio >= 3 || ratio <= 1/3) flags.push("売り価格が都市間中央値から大きく離れています");
+        }
+        if (buyPrice > 0 && baseline?.buyCount >= 4 && baseline.buy) {
+          const ratio = buyPrice / baseline.buy;
+          if (ratio >= 3 || ratio <= 1/3) flags.push("買い価格が都市間中央値から大きく離れています");
+        }
+        if (sellPrice > 0 && buyPrice > 0 && buyPrice >= sellPrice) {
+          flags.push("最高買い価格が最安売り価格以上です");
+        }
+        const oldLimit = 180 * 60000;
+        if ((sellDate && Date.now() - sellDate.getTime() > oldLimit)
+          || (buyDate && Date.now() - buyDate.getTime() > oldLimit)) {
+          flags.push("3時間以上前の観測があります");
+        }
+        const checkCell = document.createElement("td");
+        const checkBadge = document.createElement("span");
+        if (flags.length) {
+          checkBadge.className = "state market-check-warning";
+          checkBadge.textContent = "要確認";
+          checkBadge.title = flags.join(" / ");
+        } else if (!entry || (!sellDate && !buyDate)) {
+          checkBadge.className = "state unknown";
+          checkBadge.textContent = "判定材料不足";
+        } else {
+          checkBadge.className = "state market-check-ok";
+          checkBadge.textContent = "目立つ異常なし";
+        }
+        checkCell.append(checkBadge);
+        tr.append(cityCell, qualityCell, sellCell, buyCell, sellDateCell, buyDateCell, checkCell);
         rows.append(tr);
       }
     }
-    searchMessage.textContent = itemId + " の価格を品質別に表示中。取得元：AODP Asia API。";
+    searchMessage.textContent = itemId + " の価格を品質別に表示中。要確認は自動検知の目安です。取得元：AODP Asia API。";
   } catch (error) {
     rows.replaceChildren();
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 6;
+    td.colSpan = 7;
     td.textContent = error.message + " データを0として扱わず、未取得のまま表示しています。";
     tr.append(td);
     rows.append(tr);
