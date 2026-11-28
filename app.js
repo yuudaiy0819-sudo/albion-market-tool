@@ -1280,6 +1280,79 @@ if (favoriteDashboardSort) favoriteDashboardSort.addEventListener("change", sort
 
 // Cloudflare-hosted market monitor. The admin token stays in memory only.
 const MONITOR_API = "https://albion-market-tool.yuudai-y0819.workers.dev";
+const marketHealthGrid = document.querySelector("#market-health-grid");
+const marketHealthStatus = document.querySelector("#market-health-status");
+const marketHealthRefresh = document.querySelector("#market-health-refresh");
+
+function formatMarketHealthDate(value) {
+  if (!value) return "最終更新時刻：不明";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "最終更新時刻：不明";
+  return "最終更新：" + date.toLocaleString("ja-JP", {
+    month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"
+  });
+}
+
+async function refreshPublicMarketHealth() {
+  if (!marketHealthGrid || !marketHealthStatus) return;
+  if (marketHealthRefresh) marketHealthRefresh.disabled = true;
+  marketHealthStatus.textContent = "都市別データを確認しています…";
+  marketHealthGrid.replaceChildren();
+
+  try {
+    const response = await fetch(MONITOR_API + "/market-health", { cache: "no-store" });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || "HTTP " + response.status);
+    }
+
+    if (payload.status === "no_monitors" || !payload.cities?.length) {
+      marketHealthStatus.textContent = "有効な監視ルールがありません。監視設定を登録すると対象都市のデータ鮮度を表示します。";
+      return;
+    }
+
+    const checkedAt = payload.checkedAt ? new Date(payload.checkedAt).toLocaleString("ja-JP") : "時刻不明";
+    marketHealthStatus.textContent =
+      "監視ルール " + payload.enabledRules + "件 · 確認時刻 " + checkedAt +
+      " · 判定基準 " + payload.thresholdMinutes + "分";
+    const labels = {
+      normal: "正常",
+      stale: "古いデータ",
+      missing: "未観測"
+    };
+
+    for (const city of payload.cities) {
+      const card = document.createElement("article");
+      card.className = "market-health-card " + city.status;
+      const title = document.createElement("h3");
+      title.textContent = city.city;
+      const state = document.createElement("div");
+      state.className = "market-health-state";
+      state.textContent = labels[city.status] || "要確認";
+      const counts = document.createElement("p");
+      counts.className = "market-health-counts";
+      counts.textContent = "正常 " + city.normal + " · 古い " + city.stale + " · 未観測 " + city.missing;
+      const time = document.createElement("p");
+      time.className = "market-health-time";
+      time.textContent = formatMarketHealthDate(city.latestSourceAt);
+      card.append(title, state, counts, time);
+      marketHealthGrid.append(card);
+    }
+  } catch (error) {
+    marketHealthStatus.textContent =
+      "データ鮮度を取得できませんでした。Workerのデプロイ状況を確認してください。";
+    const message = document.createElement("p");
+    message.className = "market-health-note";
+    message.textContent = error.message;
+    marketHealthGrid.append(message);
+  } finally {
+    if (marketHealthRefresh) marketHealthRefresh.disabled = false;
+  }
+}
+
+marketHealthRefresh?.addEventListener("click", refreshPublicMarketHealth);
+refreshPublicMarketHealth();
+
 let monitorAdminToken = "";
 const MONITOR_TOKEN_STORAGE_KEY = "albionMarketMonitorAdminToken";
 const monitorRememberInput = document.querySelector("#monitor-remember");
