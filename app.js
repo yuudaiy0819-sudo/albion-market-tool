@@ -583,6 +583,10 @@ const monitorRefreshButton = document.querySelector("#monitor-refresh");
 const monitorPollButton = document.querySelector("#monitor-poll-now");
 const monitorTestSpreadButton = document.querySelector("#monitor-test-spread");
 const monitorRulesContainer = document.querySelector("#monitor-rules");
+const alertHistoryFilter = document.querySelector("#alert-history-filter");
+const alertHistoryRefreshButton = document.querySelector("#alert-history-refresh");
+const alertHistoryMessage = document.querySelector("#alert-history-message");
+const alertHistoryList = document.querySelector("#alert-history-list");
 
 function updateMonitorItemDisplay() {
   const name = document.querySelector("#monitor-item-name");
@@ -620,6 +624,7 @@ function setMonitorConnected(connected, state = "idle") {
   monitorRefreshButton.disabled = !connected;
   monitorPollButton.disabled = !connected;
   monitorTestSpreadButton.disabled = !connected;
+  if (alertHistoryRefreshButton) alertHistoryRefreshButton.disabled = !connected;
   monitorConnectButton.classList.remove("is-loading", "is-connected", "is-error");
   if (state === "loading") {
     monitorConnectButton.textContent = "接続中…";
@@ -632,6 +637,66 @@ function setMonitorConnected(connected, state = "idle") {
     monitorConnectButton.classList.add("is-error");
   } else {
     monitorConnectButton.textContent = "接続";
+  }
+}
+
+function formatAlertDate(value) {
+  if (!value) return "日時不明";
+  const normalized = value.includes("T") ? value : value.replace(" ", "T") + "Z";
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+async function refreshAlertHistory() {
+  if (!alertHistoryList) return;
+  alertHistoryRefreshButton.disabled = true;
+  alertHistoryMessage.textContent = "通知履歴を読み込んでいます…";
+  try {
+    const type = alertHistoryFilter.value;
+    const query = type === "all" ? "" : "?type=" + encodeURIComponent(type);
+    const payload = await monitorRequest("/admin/alert-events" + query);
+    alertHistoryList.replaceChildren();
+    const events = payload.events || [];
+    if (!events.length) {
+      alertHistoryMessage.textContent = "該当する通知履歴はありません。";
+      return;
+    }
+    alertHistoryMessage.textContent = events.length + "件の通知を表示しています（最大100件）。";
+    for (const event of events) {
+      const card = document.createElement("article");
+      card.className = "alert-history-item";
+      const top = document.createElement("div");
+      top.className = "alert-history-item-top";
+      const kind = document.createElement("span");
+      kind.className = "alert-history-kind";
+      kind.textContent = event.alert_type === "spread" ? "📈 価格差アラート" : "📉 購入価格の下落";
+      const date = document.createElement("time");
+      date.textContent = formatAlertDate(event.created_at);
+      top.append(kind, date);
+      const title = document.createElement("strong");
+      title.className = "alert-history-item-title";
+      title.textContent = (event.item_name || event.item_id || "アイテム不明") + (event.quality ? " · 品質 " + event.quality : "");
+      const detail = document.createElement("p");
+      detail.className = "alert-history-item-detail";
+      if (event.alert_type === "spread") {
+        detail.textContent = (event.buy_city || "購入都市不明") + " → " + (event.sell_city || "売却都市不明")
+          + " · 購入 " + (event.buy_price == null ? "—" : Number(event.buy_price).toLocaleString("ja-JP") + " s")
+          + " · 売却 " + (event.sell_price == null ? "—" : Number(event.sell_price).toLocaleString("ja-JP") + " s");
+        const spread = document.createElement("strong");
+        spread.className = "alert-history-spread";
+        spread.textContent = "価格差 " + (event.spread == null ? "—" : Number(event.spread).toLocaleString("ja-JP") + " シルバー");
+        card.append(top, title, detail, spread);
+      } else {
+        detail.textContent = (event.buy_city || "都市不明") + " · 購入価格 " + (event.buy_price == null ? "—" : Number(event.buy_price).toLocaleString("ja-JP") + " シルバー");
+        card.append(top, title, detail);
+      }
+      alertHistoryList.append(card);
+    }
+  } catch (error) {
+    alertHistoryMessage.textContent = "通知履歴を読み込めませんでした：" + error.message;
+  } finally {
+    alertHistoryRefreshButton.disabled = !monitorAdminToken;
   }
 }
 
@@ -694,6 +759,7 @@ monitorConnectButton.addEventListener("click", async () => {
     monitorTokenInput.value = "";
     setMonitorConnected(true);
     monitorMessage.textContent = "接続しました。監視ルールを登録できます。";
+    await refreshAlertHistory();
   } catch (error) {
     monitorAdminToken = "";
     localStorage.removeItem(MONITOR_TOKEN_STORAGE_KEY);
@@ -762,6 +828,9 @@ monitorTestSpreadButton.addEventListener("click", async () => {
   }
 });
 
+alertHistoryRefreshButton.addEventListener("click", refreshAlertHistory);
+alertHistoryFilter.addEventListener("change", refreshAlertHistory);
+
 monitorPollButton.addEventListener("click", async () => {
   monitorPollButton.disabled = true;
   monitorMessage.textContent = "AODP Eastから価格を取得しています…";
@@ -791,6 +860,7 @@ if (rememberedMonitorToken) {
   refreshMonitorRules().then(() => {
     setMonitorConnected(true);
     monitorMessage.textContent = "保存済みのログイン状態で接続しました。";
+    await refreshAlertHistory();
   }).catch((error) => {
     monitorAdminToken = "";
     localStorage.removeItem(MONITOR_TOKEN_STORAGE_KEY);
