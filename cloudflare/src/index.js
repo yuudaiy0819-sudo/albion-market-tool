@@ -320,12 +320,12 @@ async function pollMarketData(env) {
             if (Number(recentCityAlert?.count || 0) > 0) continue;
 
             const message =
-              `📦 **Albion売却注文の在庫不足の可能性**\\n` +
-              `アイテム：${itemName}（${qualityLabel}）\\n` +
-              `都市：${city}\\n` +
-              `現在の売却注文数量：${Math.round(stock.sellQuantity).toLocaleString()} 個\\n` +
-              `過去7日間の1日平均数量目安：${Math.round(stock.averageDaily).toLocaleString()} 個\\n` +
-              `平均比：${(stock.sellQuantity / stock.averageDaily * 100).toFixed(1)}%（通知基準：10%以下）\\n` +
+              `📦 **Albion売却注文の在庫不足の可能性**\n` +
+              `アイテム：${itemName}（${qualityLabel}）\n` +
+              `都市：${city}\n` +
+              `現在の売却注文数量：${Math.round(stock.sellQuantity).toLocaleString()} 個\n` +
+              `過去7日間の1日平均数量目安：${Math.round(stock.averageDaily).toLocaleString()} 個\n` +
+              `平均比：${(stock.sellQuantity / stock.averageDaily * 100).toFixed(1)}%（通知基準：10%以下）\n` +
               `※AODPの観測データによる参考値です。全取引・全注文を保証するものではありません。`;
             await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
             await env.DB.prepare(
