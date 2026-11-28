@@ -19,7 +19,7 @@ This folder contains the Cloudflare Worker backend for Albion Market Tool.
 - [x] Protected watch-rule list/create/delete endpoints
 - [x] AODP East current-price polling for enabled watch rules
 - [x] Manual protected polling endpoint for testing
-- [ ] Add watch-rule controls to the website
+- [x] Add watch-rule controls to the website
 - [ ] Add stale-data validation and spread/drop calculations
 - [ ] Add deduplicated market alerts
 - [ ] Add order-book depth collection
