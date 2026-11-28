@@ -678,6 +678,129 @@ async function pollMarketData(env) {
   };
 }
 
+
+async function marketFeedEventKey(subject, payload, receivedAt) {
+  const bucket = Math.floor(Date.parse(receivedAt) / 300000);
+  const bytes = new TextEncoder().encode(subject + "|" + JSON.stringify(payload) + "|" + bucket);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
+}
+
+function csharpTicksToIso(value) {
+  const ticks = Number(value);
+  if (!Number.isFinite(ticks) || ticks <= 621355968000000000) return null;
+  const milliseconds = (ticks - 621355968000000000) / 10000;
+  const date = new Date(milliseconds);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+async function ingestMarketFeedBatch(request, env) {
+  if (!env.MARKET_INGEST_TOKEN) {
+    return json({ error: "Market feed ingestion is not configured" }, 503);
+  }
+  if (request.headers.get("authorization") !== `Bearer ${env.MARKET_INGEST_TOKEN}`) {
+    return json({ error: "Unauthorized" }, 401);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Request body must be valid JSON" }, 400);
+  }
+  if (!Array.isArray(body?.events) || body.events.length < 1 || body.events.length > 200) {
+    return json({ error: "events must contain between 1 and 200 records" }, 400);
+  }
+
+  const receivedAt = new Date().toISOString();
+  const statements = [];
+  for (const event of body.events) {
+    const subject = event?.subject;
+    const payload = event?.payload;
+    const collectorReceivedAt = typeof event?.received_at === "string" &&
+      Number.isFinite(Date.parse(event.received_at)) ? event.received_at : receivedAt;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      return json({ error: "Each event payload must be a JSON object" }, 400);
+    }
+
+    let eventType;
+    let itemId = null;
+    let albionId = null;
+    let locationId = null;
+    let quality = null;
+    let enchantment = null;
+    let orderId = null;
+    let auctionType = null;
+    let unitPrice = null;
+    let amount = null;
+    let timescale = null;
+    let historyPoints = null;
+    let sourceTime = null;
+
+    if (subject === "marketorders.deduped") {
+      eventType = "market_order";
+      if (typeof payload.ItemTypeId !== "string" || !payload.ItemTypeId ||
+          payload.LocationId === undefined || payload.LocationId === null ||
+          !Number.isInteger(Number(payload.QualityLevel)) ||
+          Number(payload.QualityLevel) < 1 || Number(payload.QualityLevel) > 5 ||
+          !Number.isFinite(Number(payload.UnitPriceSilver)) ||
+          !Number.isFinite(Number(payload.Amount))) {
+        return json({ error: "Invalid market order payload" }, 400);
+      }
+      itemId = payload.ItemTypeId.slice(0, 100);
+      locationId = String(payload.LocationId).slice(0, 80);
+      quality = Number(payload.QualityLevel);
+      enchantment = Number(payload.EnchantmentLevel ?? 0);
+      orderId = payload.Id == null ? null : String(payload.Id).slice(0, 100);
+      auctionType = typeof payload.AuctionType === "string" ? payload.AuctionType.slice(0, 30) : null;
+      unitPrice = Number(payload.UnitPriceSilver);
+      amount = Number(payload.Amount);
+    } else if (subject === "markethistories.deduped") {
+      eventType = "market_history";
+      const points = payload.MarketHistories;
+      if (payload.LocationId === undefined || payload.LocationId === null ||
+          !Number.isInteger(Number(payload.AlbionId)) ||
+          !Number.isInteger(Number(payload.QualityLevel)) ||
+          Number(payload.QualityLevel) < 1 || Number(payload.QualityLevel) > 5 ||
+          !Array.isArray(points) || points.length > 10000) {
+        return json({ error: "Invalid market history payload" }, 400);
+      }
+      albionId = Number(payload.AlbionId);
+      locationId = String(payload.LocationId).slice(0, 80);
+      quality = Number(payload.QualityLevel);
+      timescale = Number(payload.Timescale);
+      historyPoints = points.length;
+      const timestamps = points.map(point => csharpTicksToIso(point?.Timestamp)).filter(Boolean);
+      sourceTime = timestamps.length ? timestamps.sort().at(-1) : null;
+    } else {
+      return json({ error: "Unsupported market feed subject" }, 400);
+    }
+
+    const eventKey = await marketFeedEventKey(subject, payload, collectorReceivedAt);
+    statements.push(env.DB.prepare(
+      `INSERT OR IGNORE INTO market_feed_events
+        (event_key, event_type, source_subject, received_at, collector_received_at, source_time,
+         item_id, albion_id, location_id, quality, enchantment, order_id, auction_type,
+         unit_price_silver, amount, timescale, history_points, payload_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      eventKey, eventType, subject, receivedAt, collectorReceivedAt, sourceTime,
+      itemId, albionId, locationId, quality, enchantment, orderId, auctionType,
+      unitPrice, amount, timescale, historyPoints, JSON.stringify(payload)
+    ));
+  }
+
+  const results = await env.DB.batch(statements);
+  const inserted = results.reduce((sum, result) => sum + Number(result.meta?.changes || 0), 0);
+  return json({
+    ok: true,
+    received: body.events.length,
+    inserted,
+    duplicates: body.events.length - inserted,
+    receivedAt
+  });
+}
+
 async function buildPublicMarketHealth(env) {
   if (!env.DB) throw new Error("D1 database binding DB is missing");
 
@@ -788,6 +911,15 @@ export default {
         discordConfigured: Boolean(env.DISCORD_WEBHOOK_URL),
         adminTokenConfigured: Boolean(env.ADMIN_TOKEN)
       });
+    }
+
+    if (request.method === "POST" && url.pathname === "/internal/market-feed/batch") {
+      try {
+        return await ingestMarketFeedBatch(request, env);
+      } catch (error) {
+        console.error("Market feed ingestion failed", error);
+        return json({ error: "Market feed ingestion failed" }, 500);
+      }
     }
 
     if (request.method === "GET" && url.pathname === "/market-health") {
