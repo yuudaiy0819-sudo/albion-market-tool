@@ -7,7 +7,7 @@
   <meta name="description" content="Albion Online Asia マーケット価格比較ツール">
   <title>Albion Market Tool</title>
   <link rel="stylesheet" href="./styles.css">
-  <script src="./app.js?v=alerthistory1" defer></script>
+  <script src="./app.js?v=volume1" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -136,6 +136,17 @@
       <div id="history-legend" class="history-legend"></div>
       <div id="history-chart" class="history-chart history-empty">アイテムを選択すると価格履歴を表示します。</div>
       <p id="history-message" class="history-message">AODPの履歴データを使用します。未取得の期間は補完しません。</p>
+      <div class="history-volume-section">
+        <div class="history-volume-heading">
+          <div>
+            <p class="eyebrow">MARKET VOLUME</p>
+            <h3>都市別の販売数量の目安</h3>
+          </div>
+          <span class="history-volume-unit">個数</span>
+        </div>
+        <div id="history-volume-summary" class="history-volume-summary history-empty">アイテムを選択すると数量を表示します。</div>
+        <p id="history-volume-message" class="history-message">AODPの item_count を使用します。数量は観測データに基づく目安です。</p>
+      </div>
     </section>
 
     <section class="feature-grid">
