@@ -22,7 +22,7 @@ npm test
 
 ## Run
 
-Copy `.env.example` to `.env`, set a strong `INGEST_TOKEN` and the Worker URL, then run:
+Copy `.env.example` to `.env`, set a strong `INGEST_TOKEN` and the Worker URL, then run. For a local Mac run, change `SPOOL_FILE` in `.env` to `./data/queue.jsonl`; keep `/data/queue.jsonl` for a container with a persistent `/data` volume.
 
 ```sh
 set -a; . ./.env; set +a
