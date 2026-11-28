@@ -205,7 +205,7 @@ async function getPriceBaseline(db, itemId, city, quality, side, excludeDate) {
      FROM price_observations
      WHERE item_id = ? AND city = ? AND quality = ?
        AND ${column} IS NOT NULL
-       AND observed_at >= datetime('now', '-24 hours')
+       AND datetime(observed_at) >= datetime('now', '-24 hours')
        AND ${dateColumn} <> ?
      ORDER BY observed_at DESC, id DESC
      LIMIT 96`
