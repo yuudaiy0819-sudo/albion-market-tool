@@ -120,3 +120,26 @@
 .history-volume-bar{display:block;height:100%;border-radius:99px;background:#647f9d;min-width:0}
 .history-volume-count{font-size:11px;color:#303741;text-align:right;font-variant-numeric:tabular-nums}
 @media(max-width:650px){.history-volume-row{grid-template-columns:95px minmax(50px,1fr) 78px;gap:7px}.history-volume-city,.history-volume-count{font-size:10px}.history-volume-track{height:10px}}
+
+/* Live order book depth */
+.orderbook-panel{margin-top:18px}
+.orderbook-heading{align-items:center}
+.orderbook-controls{display:flex;justify-content:flex-end;margin:-5px 0 13px}
+.orderbook-controls label{display:flex;align-items:center;gap:9px;color:#606a76;font-size:12px}
+.orderbook-controls select{height:36px;border:1px solid #e1e4e8;border-radius:7px;background:#fff;padding:0 26px 0 10px;color:#242a32;font:inherit}
+.orderbook-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.orderbook-city-card{min-width:0;border:1px solid #e7e9ed;border-radius:10px;padding:12px;background:#fff}
+.orderbook-city-card h3{margin:0 0 10px;font-size:13px}
+.orderbook-sides{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.orderbook-side{min-width:0;padding:9px;border-radius:8px;background:#fafbfc}
+.orderbook-side h4{font-size:10px;margin:0 0 8px;color:#66717e}
+.orderbook-side.sell h4{color:#a34d4d}
+.orderbook-side.buy h4{color:#287548}
+.orderbook-levels{display:grid;gap:6px}
+.orderbook-level{display:flex;justify-content:space-between;align-items:center;gap:5px;font-size:10px;color:#596472;font-variant-numeric:tabular-nums}
+.orderbook-level strong{color:#303741;font-size:10px;white-space:nowrap}
+.orderbook-total{border-top:1px solid #e5e9ed;margin-top:4px;padding-top:6px;font-size:9px;color:#69727e;font-weight:700}
+.orderbook-empty{font-size:10px;color:#929aa4;margin:0;line-height:1.6}
+.orderbook-empty-state{display:grid;place-items:center;min-height:110px;padding:22px;text-align:center;color:#89919b;background:#fafbfc;border:1px dashed #e1e4e8;border-radius:10px;font-size:12px;line-height:1.7}
+@media(max-width:700px){.orderbook-grid{grid-template-columns:1fr}.orderbook-heading{align-items:flex-start;flex-direction:column}.orderbook-heading button{width:100%}}
+@media(max-width:420px){.orderbook-sides{gap:6px}.orderbook-side{padding:7px}.orderbook-level{font-size:9px}.orderbook-level strong{font-size:9px}}
