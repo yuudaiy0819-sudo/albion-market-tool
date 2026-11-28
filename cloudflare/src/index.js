@@ -197,7 +197,7 @@ async function getEnabledRules(db) {
 }
 
 
-async function getPriceBaseline(db, itemId, city, quality, side) {
+async function getPriceBaseline(db, itemId, city, quality, side, excludeDate) {
   const column = side === "sell" ? "sell_price_min" : "buy_price_max";
   const dateColumn = side === "sell" ? "sell_price_min_date" : "buy_price_max_date";
   const result = await db.prepare(
@@ -206,9 +206,10 @@ async function getPriceBaseline(db, itemId, city, quality, side) {
      WHERE item_id = ? AND city = ? AND quality = ?
        AND ${column} IS NOT NULL
        AND observed_at >= datetime('now', '-24 hours')
+       AND ${dateColumn} <> ?
      ORDER BY observed_at DESC, id DESC
      LIMIT 96`
-  ).bind(itemId, city, Number(quality)).all();
+  ).bind(itemId, city, Number(quality), excludeDate).all();
 
   // Repeated polling of the same AODP timestamp must not inflate sample size.
   const unique = new Map();
@@ -445,8 +446,8 @@ async function pollMarketData(env) {
 
           if (spread >= threshold && !(await isCoolingDown("spread"))) {
             const [buyBaseline, sellBaseline] = await Promise.all([
-              getPriceBaseline(env.DB, rule.item_id, rule.buy_city, rule.quality, "sell"),
-              getPriceBaseline(env.DB, rule.item_id, rule.sell_city, rule.quality, "buy")
+              getPriceBaseline(env.DB, rule.item_id, rule.buy_city, rule.quality, "sell", buyRow.sell_price_min_date),
+              getPriceBaseline(env.DB, rule.item_id, rule.sell_city, rule.quality, "buy", sellRow.buy_price_max_date)
             ]);
             const confidence = assessPriceConfidence(buyPrice, sellPrice, buyBaseline, sellBaseline);
             const message =
