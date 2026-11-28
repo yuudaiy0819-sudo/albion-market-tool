@@ -7,7 +7,7 @@
   <meta name="description" content="Albion Online Asia マーケット価格比較ツール">
   <title>Albion Market Tool</title>
   <link rel="stylesheet" href="./styles.css">
-  <script src="./app.js?v=orderbook3" defer></script>
+  <script src="./app.js?v=favdashboard1" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -183,6 +183,25 @@
         <div id="history-volume-summary" class="history-volume-summary history-empty">アイテムを選択すると数量を表示します。</div>
         <p id="history-volume-message" class="history-message">AODPの item_count を使用します。数量は観測データに基づく目安です。</p>
       </div>
+    </section>
+
+    <section class="panel favorite-dashboard-panel" aria-labelledby="favorite-dashboard-title">
+      <div class="section-heading favorite-dashboard-heading">
+        <div>
+          <p class="eyebrow">FAVORITE MARKET WATCH</p>
+          <h2 id="favorite-dashboard-title">お気に入り価格一覧</h2>
+          <p class="history-subtitle">登録したアイテムの最安売り・最高買い価格をまとめて確認</p>
+        </div>
+        <button class="secondary-button" id="favorite-dashboard-refresh" type="button">価格を一括更新</button>
+      </div>
+      <p id="favorite-dashboard-status" class="history-message" aria-live="polite">お気に入りの価格を読み込んでいます…</p>
+      <div class="table-wrap">
+        <table class="favorite-dashboard-table">
+          <thead><tr><th>アイテム</th><th>最安売り価格</th><th>最高買い価格</th><th>単純価格差</th><th>最安値の前回比</th><th>観測状態</th></tr></thead>
+          <tbody id="favorite-dashboard-rows"><tr><td colspan="6" class="empty">お気に入りを登録すると価格を表示します。</td></tr></tbody>
+        </table>
+      </div>
+      <p class="favorite-dashboard-note">価格差は「最高買い価格 − 最安売り価格」の単純差額です。税金・手数料・品質差・移動費は含みません。価格はAODPの観測データで、未観測は0ではなく「—」で表示します。</p>
     </section>
 
     <section class="feature-grid">
