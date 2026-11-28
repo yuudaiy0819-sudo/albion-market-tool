@@ -678,6 +678,98 @@ async function pollMarketData(env) {
   };
 }
 
+async function buildPublicMarketHealth(env) {
+  if (!env.DB) throw new Error("D1 database binding DB is missing");
+
+  const rules = await getEnabledRules(env.DB);
+  if (rules.length === 0) {
+    return {
+      ok: true,
+      checkedAt: new Date().toISOString(),
+      scope: "enabled_watch_rules_only",
+      status: "no_monitors",
+      enabledRules: 0,
+      thresholdMinutes: 180,
+      cities: []
+    };
+  }
+
+  const observations = await env.DB.prepare(
+    "SELECT item_id, city, quality, " +
+    "MAX(sell_price_min_date) AS latest_sell_source_at, " +
+    "MAX(buy_price_max_date) AS latest_buy_source_at " +
+    "FROM price_observations " +
+    "WHERE datetime(observed_at) >= datetime('now', '-24 hours') " +
+    "GROUP BY item_id, city, quality"
+  ).all();
+
+  const byKey = new Map(
+    (observations.results || []).map(row => [
+      row.item_id + "|" + row.city + "|" + Number(row.quality),
+      row
+    ])
+  );
+  const byCity = new Map();
+  const now = Date.now();
+  const staleAfterMs = 3 * 60 * 60 * 1000;
+
+  for (const rule of rules) {
+    const sides = [
+      { city: rule.buy_city, field: "latest_sell_source_at" },
+      { city: rule.sell_city, field: "latest_buy_source_at" }
+    ];
+
+    for (const side of sides) {
+      const key = rule.item_id + "|" + side.city + "|" + Number(rule.quality);
+      const rawDate = byKey.get(key)?.[side.field];
+      const timestamp = rawDate && !String(rawDate).startsWith("0001-01-01")
+        ? Date.parse(rawDate)
+        : NaN;
+      let state = "normal";
+
+      if (!Number.isFinite(timestamp) || timestamp > now + 5 * 60 * 1000) {
+        state = "missing";
+      } else if (now - timestamp > staleAfterMs) {
+        state = "stale";
+      }
+
+      if (!byCity.has(side.city)) {
+        byCity.set(side.city, {
+          city: side.city,
+          normal: 0,
+          stale: 0,
+          missing: 0,
+          latestSourceAt: null
+        });
+      }
+      const city = byCity.get(side.city);
+      city[state]++;
+      if (Number.isFinite(timestamp) && timestamp <= now + 5 * 60 * 1000) {
+        if (!city.latestSourceAt || timestamp > Date.parse(city.latestSourceAt)) {
+          city.latestSourceAt = new Date(timestamp).toISOString();
+        }
+      }
+    }
+  }
+
+  const cities = [...byCity.values()].sort(
+    (a, b) => [...ALLOWED_CITIES].indexOf(a.city) - [...ALLOWED_CITIES].indexOf(b.city)
+  ).map(city => ({
+    ...city,
+    status: city.missing > 0 ? "missing" : city.stale > 0 ? "stale" : "normal"
+  }));
+
+  return {
+    ok: true,
+    checkedAt: new Date().toISOString(),
+    scope: "enabled_watch_rules_only",
+    status: cities.some(city => city.status !== "normal") ? "attention" : "normal",
+    enabledRules: rules.length,
+    thresholdMinutes: 180,
+    cities
+  };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -696,6 +788,15 @@ export default {
         discordConfigured: Boolean(env.DISCORD_WEBHOOK_URL),
         adminTokenConfigured: Boolean(env.ADMIN_TOKEN)
       });
+    }
+
+    if (request.method === "GET" && url.pathname === "/market-health") {
+      try {
+        return json(await buildPublicMarketHealth(env));
+      } catch (error) {
+        console.error("Public market health check failed", error);
+        return json({ ok: false, error: "Market health check failed" }, 503);
+      }
     }
 
     if (url.pathname.startsWith("/admin/") && !isAuthorized(request, env)) {
