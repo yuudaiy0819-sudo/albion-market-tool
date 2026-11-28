@@ -139,7 +139,7 @@ function renderOrderbook(payload, itemId, quality) {
     orderbookGrid.append(card);
   }
   orderbookMessage.textContent = rendered + "都市の注文板を表示中 · " + itemId + " · 品質 " + quality
-    + "。各側は上位5価格帯。数量は取得時点の注文板スナップショットです。";
+    + "。価格一覧は上位5価格帯、合計数量はAPIから取得できた全価格帯分です。取得時点の注文板スナップショットです。";
 }
 
 async function loadOrderbook() {
