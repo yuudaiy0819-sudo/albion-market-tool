@@ -13,7 +13,7 @@ export function normalizeMessage(subject, payload, receivedAt = new Date().toISO
     const enchantment = Number(payload.EnchantmentLevel ?? 0);
     const price = Number(payload.UnitPriceSilver);
     const amount = Number(payload.Amount);
-    const orderId = payload.Id;
+    const orderId = Number(payload.Id);
 
     if (typeof itemId !== "string" || !itemId || itemId.length > 100) {
       throw new Error("Market order is missing a valid ItemTypeId");
@@ -24,7 +24,13 @@ export function normalizeMessage(subject, payload, receivedAt = new Date().toISO
     if (!Number.isInteger(quality) || quality < 1 || quality > 5) {
       throw new Error("Market order has invalid QualityLevel");
     }
-    if (!Number.isFinite(price) || price < 0 || !Number.isFinite(amount) || amount < 0) {
+    if (!Number.isInteger(enchantment) || enchantment < 0 || enchantment > 4) {
+      throw new Error("Market order has invalid EnchantmentLevel");
+    }
+    if (!Number.isInteger(orderId) || orderId < 0) {
+      throw new Error("Market order has invalid Id");
+    }
+    if (!Number.isSafeInteger(price) || price < 0 || !Number.isSafeInteger(amount) || amount < 0) {
       throw new Error("Market order has invalid price or amount");
     }
 
@@ -52,8 +58,11 @@ export function normalizeMessage(subject, payload, receivedAt = new Date().toISO
     if (!Number.isInteger(quality) || quality < 1 || quality > 5) {
       throw new Error("Market history has invalid QualityLevel");
     }
-    if (!Array.isArray(histories)) {
-      throw new Error("Market history is missing MarketHistories array");
+    if (!Number.isInteger(timescale) || timescale < 0 || timescale > 2) {
+      throw new Error("Market history has invalid Timescale");
+    }
+    if (!Array.isArray(histories) || histories.length > 10000) {
+      throw new Error("Market history is missing a valid MarketHistories array");
     }
     for (const point of histories) {
       if (!point || typeof point !== "object" ||
