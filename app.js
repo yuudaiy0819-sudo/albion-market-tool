@@ -384,6 +384,12 @@ const FAVORITE_PRICE_HISTORY_KEY = "albion-market-tool-favorite-price-history-v1
 const favoriteDashboardRows = document.querySelector("#favorite-dashboard-rows");
 const favoriteDashboardStatus = document.querySelector("#favorite-dashboard-status");
 const favoriteDashboardRefresh = document.querySelector("#favorite-dashboard-refresh");
+const favoriteMovementRows = document.querySelector("#favorite-movement-rows");
+const favoriteMovementStatus = document.querySelector("#favorite-movement-status");
+const favoriteMovementRange = document.querySelector("#favorite-movement-range");
+const favoriteMovementSort = document.querySelector("#favorite-movement-sort");
+const favoriteMovementRefresh = document.querySelector("#favorite-movement-refresh");
+let favoriteMovementRequestId = 0;
 const favoriteDashboardSort = document.querySelector("#favorite-dashboard-sort");
 
 function readFavoritePriceHistory() {
@@ -474,6 +480,49 @@ function setDashboardPriceCell(cell, price, city, quality) {
   cell.append(amount, detail);
 }
 
+function sortFavoriteMovementRows() {
+  if (!favoriteMovementRows) return;
+  const mode = favoriteMovementSort ? favoriteMovementSort.value : "up";
+  const rows = Array.from(favoriteMovementRows.querySelectorAll("tr"));
+  rows.sort((a,b) => {
+    const av=Number(a.dataset.changePct), bv=Number(b.dataset.changePct), aa=Number(a.dataset.changeAmount), ba=Number(b.dataset.changeAmount);
+    const va=a.dataset.valid==="1", vb=b.dataset.valid==="1"; if(va!==vb)return va?-1:1; if(!va)return Number(a.dataset.index||0)-Number(b.dataset.index||0);
+    if(mode==="down")return av-bv; if(mode==="absolute")return Math.abs(bv)-Math.abs(av); if(mode==="amount")return Math.abs(ba)-Math.abs(aa); return bv-av;
+  }); rows.forEach(row=>favoriteMovementRows.append(row));
+}
+function makeFavoriteMovementRow(saved,index) {
+  const tr=document.createElement("tr"); tr.dataset.index=String(index); const td=document.createElement("td"); const wrap=document.createElement("div"); wrap.className="favorite-dashboard-item";
+  const img=document.createElement("img"); img.src="https://render.albiononline.com/v1/item/"+saved.itemId+".png?quality="+(saved.quality==="all"?"1":saved.quality); img.alt=""; img.loading="lazy"; img.onerror=()=>{img.hidden=true;};
+  const info=document.createElement("div"); const name=document.createElement("button"); name.type="button"; name.className="favorite-dashboard-name"; name.textContent=saved.name; name.addEventListener("click",()=>openFavoriteFromDashboard(saved));
+  const meta=document.createElement("span"); meta.className="favorite-dashboard-id"; meta.textContent=saved.itemId+" · 品質 "+saved.quality; info.append(name,meta); wrap.append(img,info); td.append(wrap); tr.append(td);
+  for(let i=0;i<4;i++){const cell=document.createElement("td");cell.textContent=i===3?"取得中…":"—";tr.append(cell);} favoriteMovementRows.append(tr); return tr;
+}
+async function refreshFavoriteMovement() {
+  if(!favoriteMovementRows||!favoriteMovementStatus||!favoriteMovementRefresh)return;
+  const requestId=++favoriteMovementRequestId; const favorites=readFavorites(); favoriteMovementRows.replaceChildren();
+  if(!favorites.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=5;td.className="empty";td.textContent="お気に入りを登録するとランキングを表示します。";tr.append(td);favoriteMovementRows.append(tr);favoriteMovementStatus.textContent="お気に入りはまだ登録されていません。";return;}
+  favoriteMovementRefresh.disabled=true; const range=favoriteMovementRange?favoriteMovementRange.value:"24h";
+  const cfg={"1h":{days:1/24,scale:1},"24h":{days:1,scale:1},"7d":{days:7,scale:6}}[range]; const end=new Date(),start=new Date(end.getTime()-cfg.days*86400000);
+  const rows=favorites.map((saved,index)=>makeFavoriteMovementRow(saved,index)); favoriteMovementStatus.textContent=favorites.length+"件のお気に入りを確認中…"; let next=0,done=0;
+  const worker=async()=>{while(next<favorites.length){const index=next++,saved=favorites[index],tr=rows[index];try{
+    const qualities=saved.quality==="all"?"1,2,3,4,5":saved.quality;
+    const url="https://east.albion-online-data.com/api/v2/stats/history/"+encodeURIComponent(saved.itemId)+".json?locations="+encodeURIComponent(CITIES.join(","))+"&qualities="+encodeURIComponent(qualities)+"&date="+localDateString(start)+"&end_date="+localDateString(end)+"&time-scale="+cfg.scale;
+    const response=await fetch(url);if(!response.ok)throw new Error("HTTP "+response.status);const payload=await response.json();const records=Array.isArray(payload)?payload:(payload.data||payload.series||[]);const candidates=[];
+    for(const record of records){const city=record.location||record.city||record.Location;if(!CITIES.includes(city))continue;const quality=String(record.quality||record.Quality||"1");if(saved.quality!=="all"&&quality!==String(saved.quality))continue;
+      const points=Array.isArray(record.data)?record.data:(record.Data||[]);const clean=points.map(p=>({time:parseHistoryTimestamp(p.timestamp??p.Timestamp),price:Number(p.avg_price??p.AveragePrice)})).filter(p=>p.time&&Number.isFinite(p.price)&&p.price>0&&p.time>=start&&p.time<=end).sort((a,b)=>a.time-b.time);
+      if(clean.length>=2)candidates.push({city,quality,first:clean[0],last:clean[clean.length-1]});}
+    candidates.sort((a,b)=>b.last.time-a.last.time);const best=candidates[0];
+    if(!best){tr.children[4].textContent="比較データなし";tr.children[4].className="favorite-movement-missing";}
+    else{const change=best.last.price-best.first.price,pct=change/best.first.price*100;tr.dataset.valid="1";tr.dataset.changePct=String(pct);tr.dataset.changeAmount=String(change);
+      tr.children[1].textContent=Math.round(best.first.price).toLocaleString("ja-JP")+" → "+Math.round(best.last.price).toLocaleString("ja-JP")+" s";
+      tr.children[2].textContent=(change>0?"+":change<0?"−":"±")+Math.round(Math.abs(change)).toLocaleString("ja-JP")+" s";tr.children[2].className="favorite-movement-change "+(change>0?"up":change<0?"down":"neutral");
+      tr.children[3].textContent=(pct>0?"+":"")+pct.toFixed(2)+"%";tr.children[3].className="favorite-movement-change "+(pct>0?"up":pct<0?"down":"neutral");
+      const state=freshness(best.last.time),badge=document.createElement("span");badge.className="state "+state.className;badge.textContent=state.label+" · "+best.city+" Q"+best.quality;tr.children[4].replaceChildren(badge);}
+  }catch(error){tr.children[4].textContent="取得失敗";tr.children[4].className="favorite-movement-missing";tr.children[3].textContent=error.message;}
+  done++;favoriteMovementStatus.textContent=done+" / "+favorites.length+" 件を確認しました。";}};
+  await Promise.all(Array.from({length:Math.min(3,favorites.length)},worker));if(requestId!==favoriteMovementRequestId)return;sortFavoriteMovementRows();
+  const count=rows.filter(row=>row.dataset.valid==="1").length;favoriteMovementStatus.textContent=favorites.length+"件中 "+count+"件を比較できました。比較対象は同じ都市・品質の売り注文平均価格です。";favoriteMovementRefresh.disabled=false;
+}
 function sortFavoriteDashboardRows() {
   if (!favoriteDashboardRows) return;
   const mode = favoriteDashboardSort ? favoriteDashboardSort.value : "default";
@@ -995,6 +1044,10 @@ renderFavorites();
 updateFavoriteButton();
 refreshFavoriteDashboard();
 favoriteDashboardRefresh.addEventListener("click", refreshFavoriteDashboard);
+if(favoriteMovementRefresh)favoriteMovementRefresh.addEventListener("click",refreshFavoriteMovement);
+if(favoriteMovementRange)favoriteMovementRange.addEventListener("change",refreshFavoriteMovement);
+if(favoriteMovementSort)favoriteMovementSort.addEventListener("change",sortFavoriteMovementRows);
+refreshFavoriteMovement();
 if (favoriteDashboardSort) favoriteDashboardSort.addEventListener("change", sortFavoriteDashboardRows);
 
 // Cloudflare-hosted market monitor. The admin token stays in memory only.
