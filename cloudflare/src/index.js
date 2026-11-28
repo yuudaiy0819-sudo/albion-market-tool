@@ -313,10 +313,11 @@ async function pollMarketData(env) {
           for (const [city, stock] of lowStockCities.entries()) {
             if (stock.averageDaily <= 0 || stock.sellQuantity > stock.averageDaily * 0.10) continue;
             const recentCityAlert = await env.DB.prepare(
-              `SELECT COUNT(*) AS count FROM alert_events
-               WHERE watch_rule_id = ? AND alert_type = 'low_sell_stock'
-               AND message LIKE ? AND created_at >= datetime('now', '-60 minutes')`
-            ).bind(rule.id, `%都市：${city}%`).first();
+              `SELECT COUNT(*) AS count FROM alert_events e
+               INNER JOIN watch_rules w ON w.id = e.watch_rule_id
+               WHERE w.item_id = ? AND w.quality = ? AND e.alert_type = 'low_sell_stock'
+               AND e.message LIKE ? AND e.created_at >= datetime('now', '-60 minutes')`
+            ).bind(rule.item_id, Number(rule.quality), `%都市：${city}%`).first();
             if (Number(recentCityAlert?.count || 0) > 0) continue;
 
             const message =
