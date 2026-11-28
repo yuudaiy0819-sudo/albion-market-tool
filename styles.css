@@ -160,3 +160,22 @@
 .orderbook-sides.single{grid-template-columns:1fr}
 .orderbook-toggle{position:relative;touch-action:manipulation}
 .orderbook-toggle *{pointer-events:none}
+
+/* Favorites market dashboard */
+.favorite-dashboard-heading{align-items:center}
+.favorite-dashboard-heading .history-subtitle{margin:7px 0 0}
+.favorite-dashboard-table{min-width:850px}
+.favorite-dashboard-table th,.favorite-dashboard-table td{white-space:nowrap;vertical-align:middle}
+.favorite-dashboard-item{display:flex;align-items:center;gap:9px;min-width:180px}
+.favorite-dashboard-item img{width:38px;height:38px;object-fit:contain;flex:none}
+.favorite-dashboard-name{display:block;padding:0;border:0;background:transparent;color:#26313d;font:inherit;font-size:12px;font-weight:750;text-align:left;cursor:pointer}
+.favorite-dashboard-name:hover{text-decoration:underline}
+.favorite-dashboard-id{display:block;margin-top:3px;color:#929aa4;font-size:10px}
+.favorite-dashboard-price{font-weight:750;font-variant-numeric:tabular-nums}
+.favorite-dashboard-city{display:block;margin-top:3px;color:#7b8490;font-size:10px}
+.favorite-dashboard-spread{font-weight:750;font-variant-numeric:tabular-nums}
+.favorite-dashboard-change.up{color:#16845b}
+.favorite-dashboard-change.down{color:#c04c4c}
+.favorite-dashboard-change.neutral{color:#7b8490}
+.favorite-dashboard-note{margin:12px 0 0;color:#89919b;font-size:10px;line-height:1.7}
+@media(max-width:700px){.favorite-dashboard-heading{align-items:flex-start;flex-direction:column}.favorite-dashboard-heading button{width:100%}}
