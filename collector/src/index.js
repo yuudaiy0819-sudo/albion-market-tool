@@ -77,8 +77,8 @@ async function flush() {
     }
   } catch (error) {
     console.error(error.message);
-    process.exitCode = 1;
     stopping = true;
+    setTimeout(() => process.exit(1), 1000).unref();
   } finally {
     inFlight = false;
   }
@@ -127,8 +127,8 @@ async function main() {
       }
     })().catch(error => {
       console.error("Subscription ended", { subject, error: error.message });
-      process.exitCode = 1;
       stopping = true;
+      process.exit(1);
     });
   }
 
