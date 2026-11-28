@@ -25,6 +25,137 @@ const historyRangeButtons = document.querySelectorAll("[data-history-range]");
 let historyRange = "24h";
 let historyRequestId = 0;
 const FAVORITES_KEY = "albion-market-tool-favorites-v1";
+
+const ORDERBOOK_API = "https://east.albion-online-data.com/api/v2/stats/orderbook";
+const orderbookGrid = document.querySelector("#orderbook-grid");
+const orderbookMessage = document.querySelector("#orderbook-message");
+const orderbookQuality = document.querySelector("#orderbook-quality");
+const orderbookRefresh = document.querySelector("#orderbook-refresh");
+let orderbookRequestId = 0;
+
+function orderbookArray(record, keys) {
+  for (const key of keys) {
+    if (Array.isArray(record?.[key])) return record[key];
+  }
+  return [];
+}
+
+function orderbookAmount(order) {
+  const value = order?.amount ?? order?.quantity ?? order?.volume ?? order?.count;
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
+function renderOrderLevels(container, orders, side) {
+  const sorted = [...orders].filter(order => Number(order?.price) > 0 && orderbookAmount(order) !== null)
+    .sort((a, b) => side === "sell" ? Number(a.price) - Number(b.price) : Number(b.price) - Number(a.price));
+  const visible = sorted.slice(0, 5);
+  if (!visible.length) {
+    const empty = document.createElement("p");
+    empty.className = "orderbook-empty";
+    empty.textContent = orders.length ? "数量データなし" : "注文データなし";
+    container.append(empty);
+    return;
+  }
+  let total = 0;
+  for (const order of visible) {
+    const amount = orderbookAmount(order);
+    total += amount;
+    const row = document.createElement("div");
+    row.className = "orderbook-level";
+    const price = document.createElement("span");
+    price.textContent = formatSilver(Number(order.price));
+    const quantity = document.createElement("strong");
+    quantity.textContent = Math.round(amount).toLocaleString("ja-JP") + " 個";
+    row.append(price, quantity);
+    container.append(row);
+  }
+  const totalRow = document.createElement("div");
+  totalRow.className = "orderbook-total";
+  totalRow.textContent = "上位5価格帯：" + Math.round(total).toLocaleString("ja-JP") + " 個";
+  container.append(totalRow);
+}
+
+function renderOrderbook(payload, itemId, quality) {
+  const records = Array.isArray(payload) ? payload : (payload?.data || payload?.orderbooks || payload?.orderBooks || []);
+  orderbookGrid.replaceChildren();
+  if (!Array.isArray(records) || !records.length) {
+    orderbookGrid.className = "orderbook-grid orderbook-empty-state";
+    orderbookGrid.textContent = "このアイテム・品質の注文板データは見つかりませんでした。";
+    return;
+  }
+  orderbookGrid.className = "orderbook-grid";
+  const byCity = new Map(records.map(record => [record.location || record.city || record.Location, record]));
+  let rendered = 0;
+  for (const city of CITIES) {
+    const record = byCity.get(city);
+    const card = document.createElement("article");
+    card.className = "orderbook-city-card";
+    const heading = document.createElement("h3");
+    heading.textContent = city;
+    card.append(heading);
+    if (!record) {
+      const missing = document.createElement("p");
+      missing.className = "orderbook-empty";
+      missing.textContent = "データなし";
+      card.append(missing);
+      orderbookGrid.append(card);
+      continue;
+    }
+    rendered++;
+    const columns = document.createElement("div");
+    columns.className = "orderbook-sides";
+    const sellSide = document.createElement("section");
+    sellSide.className = "orderbook-side sell";
+    const sellTitle = document.createElement("h4");
+    sellTitle.textContent = "売り注文（安い順）";
+    const sellLevels = document.createElement("div");
+    sellLevels.className = "orderbook-levels";
+    renderOrderLevels(sellLevels, orderbookArray(record, ["sell_orders", "sellOrders", "asks", "sell"]), "sell");
+    sellSide.append(sellTitle, sellLevels);
+    const buySide = document.createElement("section");
+    buySide.className = "orderbook-side buy";
+    const buyTitle = document.createElement("h4");
+    buyTitle.textContent = "買い注文（高い順）";
+    const buyLevels = document.createElement("div");
+    buyLevels.className = "orderbook-levels";
+    renderOrderLevels(buyLevels, orderbookArray(record, ["buy_orders", "buyOrders", "bids", "buy"]), "buy");
+    buySide.append(buyTitle, buyLevels);
+    columns.append(sellSide, buySide);
+    card.append(columns);
+    orderbookGrid.append(card);
+  }
+  orderbookMessage.textContent = rendered + "都市の注文板を表示中 · " + itemId + " · 品質 " + quality
+    + "。各側は上位5価格帯。数量は取得時点の注文板スナップショットです。";
+}
+
+async function loadOrderbook() {
+  if (!selectedItem || !orderbookGrid || !orderbookQuality) return;
+  const requestId = ++orderbookRequestId;
+  const itemId = selectedItemId();
+  const quality = orderbookQuality.value;
+  orderbookRefresh.disabled = true;
+  orderbookMessage.textContent = "注文板を取得しています…";
+  orderbookGrid.className = "orderbook-grid orderbook-empty-state";
+  orderbookGrid.textContent = "読み込み中…";
+  try {
+    const url = ORDERBOOK_API + "/" + encodeURIComponent(itemId) + ".json?locations="
+      + encodeURIComponent(CITIES.join(",")) + "&qualities=" + encodeURIComponent(quality);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("注文板APIが応答しませんでした（HTTP " + response.status + "）。");
+    const payload = await response.json();
+    if (requestId !== orderbookRequestId) return;
+    renderOrderbook(payload, itemId, quality);
+  } catch (error) {
+    if (requestId !== orderbookRequestId) return;
+    orderbookGrid.className = "orderbook-grid orderbook-empty-state";
+    orderbookGrid.textContent = error.message + " 時間をおいて再度お試しください。";
+    orderbookMessage.textContent = "注文板の取得に失敗しました。";
+  } finally {
+    if (requestId === orderbookRequestId) orderbookRefresh.disabled = false;
+  }
+}
+
 let catalog = [];
 let selectedItem = null;
 let catalogPromise = null;
@@ -82,6 +213,7 @@ function showResults(items) {
       searchMessage.textContent = japaneseName(item) + " を選択しました。価格を取得しています…";
       loadPrices();
       loadHistory();
+      loadOrderbook();
     });
     results.append(button);
   }
@@ -210,6 +342,7 @@ function renderFavorites() {
         searchMessage.textContent = saved.name + " をお気に入りから読み込みました。";
         loadPrices();
         loadHistory();
+        loadOrderbook();
         window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (error) {
         searchMessage.textContent = "アイテム一覧を読み込めませんでした。";
@@ -604,9 +737,12 @@ for (const control of [tierSelect, enchantSelect, qualitySelect]) {
       showSelectedItem();
       loadPrices();
       loadHistory();
+      loadOrderbook();
     }
   });
 }
+orderbookQuality.addEventListener("change", loadOrderbook);
+orderbookRefresh.addEventListener("click", loadOrderbook);
 historyQuality.addEventListener("change", loadHistory);
 for (const input of historyCityInputs) input.addEventListener("change", loadHistory);
 historyCityAllButton.addEventListener("click", () => {
