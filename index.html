@@ -140,9 +140,61 @@
 
     <section class="feature-grid">
       <article class="panel feature-card favorites-card"><p class="eyebrow">FAVORITES</p><h2>お気に入り</h2><p>登録したアイテムをクリックすると、条件を復元して価格を再表示できます。</p><div id="favorite-list" class="favorite-list" aria-live="polite"></div></article>
-      <article class="panel feature-card"><p class="eyebrow">PRICE ALERTS</p><h2>価格アラート</h2><p>指定価格への到達を通知。</p><span class="coming">準備中</span></article>
+      <article class="panel feature-card"><p class="eyebrow">PRICE MONITOR</p><h2>自動価格監視</h2><p>アイテムと都市の組み合わせを登録して、サーバー側で価格を定期収集。</p><a class="monitor-link" href="#monitor-panel">監視設定へ</a></article>
     </section>
 
+
+    <section class="panel monitor-panel" id="monitor-panel" aria-labelledby="monitor-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">CLOUDFLARE MONITOR</p>
+          <h2 id="monitor-title">自動価格監視の設定</h2>
+        </div>
+        <span class="state unknown" id="monitor-status">未接続</span>
+      </div>
+      <p class="monitor-description">管理トークンで接続すると、監視ルールを登録・削除できます。トークンはこのページに保存されません。</p>
+      <div class="monitor-connect-row">
+        <label class="monitor-token-label" for="monitor-token">管理トークン（ADMIN_TOKEN）</label>
+        <input id="monitor-token" type="password" autocomplete="off" placeholder="Cloudflareで設定した管理トークン">
+        <button id="monitor-connect" type="button">接続</button>
+      </div>
+      <div class="monitor-form">
+        <div class="monitor-selected">
+          <span class="monitor-label">監視するアイテム</span>
+          <strong id="monitor-item-name">上のアイテム検索から選択してください</strong>
+          <span id="monitor-item-id" class="muted"></span>
+        </div>
+        <label>品質
+          <select id="monitor-quality">
+            <option value="1">ノーマル</option><option value="2">良好</option>
+            <option value="3">傑出</option><option value="4">エクセレント</option><option value="5">最高傑作</option>
+          </select>
+        </label>
+        <label>仕入れ都市
+          <select id="monitor-buy-city">
+            <option>Bridgewatch</option><option>Fort Sterling</option><option>Lymhurst</option>
+            <option>Martlock</option><option>Thetford</option><option>Caerleon</option>
+            <option>Brecilien</option><option>Black Market</option>
+          </select>
+        </label>
+        <label>売却都市
+          <select id="monitor-sell-city">
+            <option>Caerleon</option><option>Bridgewatch</option><option>Fort Sterling</option>
+            <option>Lymhurst</option><option>Martlock</option><option>Thetford</option>
+            <option>Brecilien</option><option>Black Market</option>
+          </select>
+        </label>
+        <label>価格差の記録目安（シルバー）
+          <input id="monitor-min-spread" type="number" min="0" step="100" value="1000">
+        </label>
+      </div>
+      <div class="monitor-actions">
+        <button id="monitor-add-rule" type="button" disabled>この条件を監視リストに追加</button>
+        <button id="monitor-refresh" type="button" class="secondary-button" disabled>リストを更新</button>
+      </div>
+      <p id="monitor-message" class="helper" aria-live="polite">最初に管理トークンで接続してください。監視ルールを登録すると、Workerが15分ごとに価格を収集します。</p>
+      <div id="monitor-rules" class="monitor-rules" aria-live="polite"></div>
+    </section>
     <footer><span>Albion Market Tool</span><span>Community market data · Asia</span></footer>
   </main>
 </body>
