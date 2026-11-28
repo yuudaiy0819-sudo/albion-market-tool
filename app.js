@@ -373,6 +373,7 @@ function renderFavorites() {
       renderFavorites();
       updateFavoriteButton();
       refreshFavoriteDashboard();
+      refreshFavoriteMovement();
     });
     itemRow.append(loadButton, removeButton);
     favoriteList.append(itemRow);
@@ -649,6 +650,7 @@ function toggleFavorite() {
     renderFavorites();
     updateFavoriteButton();
     refreshFavoriteDashboard();
+    refreshFavoriteMovement();
     searchMessage.textContent = exists ? "お気に入りから削除しました。" : "お気に入りに登録しました！";
   }
 }
