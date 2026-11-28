@@ -1172,7 +1172,7 @@ async function refreshAlertHistory() {
         spread.textContent = "価格差 " + (event.spread == null ? "—" : Number(event.spread).toLocaleString("ja-JP") + " シルバー");
         card.append(top, title, detail, spread);
       } else if (event.alert_type === "low_sell_stock") {
-        detail.textContent = "全都市監視 · " + (event.message || "").split("\\n").find(line => line.startsWith("都市："))?.replace("都市：", "") + " · 売却注文の在庫が過去7日平均の10%以下";
+        detail.textContent = "全都市監視 · " + (event.message || "").split("\n").find(line => line.startsWith("都市："))?.replace("都市：", "") + " · 売却注文の在庫が過去7日平均の10%以下";
         card.append(top, title, detail);
       } else {
         detail.textContent = (event.buy_city || "都市不明") + " · 購入価格 " + (event.buy_price == null ? "—" : Number(event.buy_price).toLocaleString("ja-JP") + " シルバー");
