@@ -481,10 +481,12 @@ function sortFavoriteDashboardRows() {
   rows.sort((a, b) => {
     if (mode === "default") return Number(a.dataset.favoriteIndex || 0) - Number(b.dataset.favoriteIndex || 0);
     const key = mode === "sell" ? "sell" : mode === "buy" ? "buy" : "spread";
-    const av = Number(a.dataset[key]);
-    const bv = Number(b.dataset[key]);
-    const aValid = Number.isFinite(av);
-    const bValid = Number.isFinite(bv);
+    const aRaw = a.dataset[key];
+    const bRaw = b.dataset[key];
+    const av = Number(aRaw);
+    const bv = Number(bRaw);
+    const aValid = aRaw !== "" && Number.isFinite(av);
+    const bValid = bRaw !== "" && Number.isFinite(bv);
     if (aValid !== bValid) return aValid ? -1 : 1;
     if (!aValid) return Number(a.dataset.favoriteIndex || 0) - Number(b.dataset.favoriteIndex || 0);
     return mode === "sell" ? av - bv : bv - av;
