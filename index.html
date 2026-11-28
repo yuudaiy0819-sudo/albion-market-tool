@@ -95,12 +95,18 @@
     </section>
 
     <section class="panel orderbook-panel" aria-labelledby="orderbook-title">
+      <button class="orderbook-toggle" id="orderbook-toggle" type="button" aria-expanded="false" aria-controls="orderbook-content">
+        <span class="orderbook-toggle-copy">
+          <span class="eyebrow">LIVE ORDER BOOK</span>
+          <span class="orderbook-toggle-title">都市別の注文板・数量比較</span>
+          <span class="orderbook-toggle-hint">クリックして注文板を表示</span>
+        </span>
+        <span class="orderbook-toggle-icon" aria-hidden="true">＋</span>
+      </button>
+      <div id="orderbook-content" class="orderbook-content" hidden>
+
       <div class="section-heading orderbook-heading">
-        <div>
-          <p class="eyebrow">LIVE ORDER BOOK</p>
-          <h2 id="orderbook-title">都市別の注文板・数量比較</h2>
-          <p class="history-subtitle">各都市の売り注文・買い注文を価格帯ごとに確認</p>
-        </div>
+        <p class="history-subtitle">各都市の売り注文・買い注文を価格帯ごとに確認</p>
         <button id="orderbook-refresh" class="secondary-button" type="button" disabled>注文板を更新</button>
       </div>
       <div class="orderbook-controls">
@@ -113,6 +119,7 @@
       </div>
       <div id="orderbook-grid" class="orderbook-grid orderbook-empty-state">アイテムを選択すると、都市ごとの注文板を取得します。</div>
       <p id="orderbook-message" class="history-message">AODPの注文板APIから取得します。表示数量は上位5価格帯の合計です。</p>
+      </div>
     </section>
 
     <section class="panel history-panel" aria-labelledby="history-title">
