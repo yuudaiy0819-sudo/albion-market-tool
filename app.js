@@ -328,7 +328,7 @@ function renderVolumeSummary(series, range) {
     row.append(city, track, amount);
     historyVolumeSummary.append(row);
   }
-  const granularity = range === "24h" ? "1時間ごと" : range === "7d" ? "6時間ごと" : "24時間ごと";
+  const granularity = range === "1h" || range === "24h" ? "1時間ごと" : range === "7d" ? "6時間ごと" : "24時間ごと";
   historyVolumeMessage.textContent = "AODP履歴の item_count を集計 · " + granularity
     + "の数量を期間内で合計 · 品質 " + (historyQuality.value === "all" ? "全品質" : historyQuality.value)
     + "。全取引の完全な記録ではなく、AODPに届いた観測データに基づく目安です。";
@@ -370,7 +370,7 @@ function renderHistory(payload, range, timeScale) {
   }
 
   const now = Date.now();
-  const days = range === "24h" ? 1 : range === "7d" ? 7 : 30;
+  const days = range === "1h" ? 1 / 24 : range === "24h" ? 1 : range === "7d" ? 7 : 30;
   const minTime = now - days * 86400000;
   const series = [...byCity.entries()].map(([city, points], cityIndex) => ({
     city,
@@ -425,7 +425,7 @@ function renderHistory(payload, range, timeScale) {
     const label = make("text",{x:left-12,y:yy+4,"text-anchor":"end",class:"history-axis-label"});
     label.textContent = Math.round(value).toLocaleString("en-US");
   }
-  const dateFormat = range === "24h"
+  const dateFormat = range === "24h" || range === "1h"
     ? new Intl.DateTimeFormat("ja-JP",{hour:"2-digit",minute:"2-digit"})
     : new Intl.DateTimeFormat("ja-JP",{month:"numeric",day:"numeric"});
   for (let i=0;i<=4;i++) {
@@ -487,6 +487,7 @@ async function loadHistory() {
   const requestId = ++historyRequestId;
   const cities = selectedHistoryCities();
   const rangeSettings = {
+    "1h": {days:1/24, scale:1},
     "24h": {days:1, scale:1},
     "7d": {days:7, scale:6},
     "30d": {days:30, scale:24}
