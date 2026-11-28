@@ -152,12 +152,135 @@ async function pollMarketData(env) {
     }
   }
 
+  let alertsSent = 0;
+  const alertErrors = [];
+
+  if (env.DISCORD_WEBHOOK_URL) {
+    for (const rule of rules) {
+      try {
+        // Buy in buy_city from sell orders; sell in sell_city into buy orders.
+        const [buyResult, sellResult] = await Promise.all([
+          env.DB.prepare(
+            `SELECT sell_price_min, sell_price_min_date, observed_at
+             FROM price_observations
+             WHERE item_id = ? AND city = ? AND quality = ? AND sell_price_min IS NOT NULL
+             ORDER BY observed_at DESC, id DESC LIMIT 2`
+          ).bind(rule.item_id, rule.buy_city, Number(rule.quality)).all(),
+          env.DB.prepare(
+            `SELECT buy_price_max, buy_price_max_date, observed_at
+             FROM price_observations
+             WHERE item_id = ? AND city = ? AND quality = ? AND buy_price_max IS NOT NULL
+             ORDER BY observed_at DESC, id DESC LIMIT 1`
+          ).bind(rule.item_id, rule.sell_city, Number(rule.quality)).all()
+        ]);
+
+        const buyRows = buyResult.results || [];
+        const sellRow = (sellResult.results || [])[0];
+        const buyRow = buyRows[0];
+
+        // Do not alert from stale or missing market observations.
+        const isRecent = value => {
+          if (!value || value.startsWith("0001-01-01")) return false;
+          const timestamp = Date.parse(value);
+          return Number.isFinite(timestamp) &&
+            Date.now() - timestamp <= 60 * 60 * 1000 &&
+            timestamp <= Date.now() + 5 * 60 * 1000;
+        };
+
+        const isCoolingDown = async alertType => {
+          const recent = await env.DB.prepare(
+            `SELECT COUNT(*) AS count FROM alert_events
+             WHERE watch_rule_id = ? AND alert_type = ?
+             AND created_at >= datetime('now', '-60 minutes')`
+          ).bind(rule.id, alertType).first();
+          return Number(recent?.count || 0) > 0;
+        };
+
+        const itemName = rule.item_name || rule.item_id;
+        const qualityLabel = `品質 ${rule.quality}`;
+
+        if (
+          buyRow && sellRow &&
+          Number(buyRow.sell_price_min) > 0 &&
+          Number(sellRow.buy_price_max) > 0 &&
+          isRecent(buyRow.sell_price_min_date) &&
+          isRecent(sellRow.buy_price_max_date)
+        ) {
+          const buyPrice = Number(buyRow.sell_price_min);
+          const sellPrice = Number(sellRow.buy_price_max);
+          const spread = sellPrice - buyPrice;
+          const threshold = Number(rule.min_spread || 0);
+
+          if (spread >= threshold && !(await isCoolingDown("spread"))) {
+            const message =
+              `📈 **Albion価格差アラート**\n` +
+              `アイテム：${itemName}（${qualityLabel}）\n` +
+              `購入：${rule.buy_city} / ${buyPrice.toLocaleString()}\n` +
+              `売却：${rule.sell_city} / ${sellPrice.toLocaleString()}\n` +
+              `価格差：**${spread.toLocaleString()}**（設定値：${threshold.toLocaleString()}以上）\n` +
+              `※税・手数料を差し引く前の注文価格差です。`;
+            await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
+            await env.DB.prepare(
+              `INSERT INTO alert_events
+                (watch_rule_id, alert_type, message, buy_price, sell_price, spread, source_observed_at, delivered_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+            ).bind(
+              rule.id, "spread", message, buyPrice, sellPrice, spread,
+              new Date().toISOString(), new Date().toISOString()
+            ).run();
+            alertsSent++;
+          }
+        }
+
+        // Notify when the price to buy from sell orders in buy_city falls.
+        if (Number(rule.notify_on_buy_price_drop ?? 1) === 1 && buyRows.length >= 2) {
+          const current = buyRows[0];
+          const previous = buyRows[1];
+          const currentPrice = Number(current.sell_price_min);
+          const previousPrice = Number(previous.sell_price_min);
+
+          if (
+            currentPrice > 0 && previousPrice > 0 &&
+            currentPrice < previousPrice &&
+            isRecent(current.sell_price_min_date) &&
+            isRecent(previous.sell_price_min_date) &&
+            current.sell_price_min_date !== previous.sell_price_min_date &&
+            !(await isCoolingDown("buy_price_drop"))
+          ) {
+            const drop = previousPrice - currentPrice;
+            const message =
+              `📉 **Albion購入価格の下落通知**\n` +
+              `アイテム：${itemName}（${qualityLabel}）\n` +
+              `都市：${rule.buy_city}\n` +
+              `価格：${previousPrice.toLocaleString()} → **${currentPrice.toLocaleString()}**\n` +
+              `下落：${drop.toLocaleString()}`;
+            await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
+            await env.DB.prepare(
+              `INSERT INTO alert_events
+                (watch_rule_id, alert_type, message, buy_price, source_observed_at, delivered_at)
+               VALUES (?, ?, ?, ?, ?, ?)`
+            ).bind(
+              rule.id, "buy_price_drop", message, currentPrice,
+              current.sell_price_min_date, new Date().toISOString()
+            ).run();
+            alertsSent++;
+          }
+        }
+      } catch (error) {
+        alertErrors.push(`Rule ${rule.id}: ${error.message}`);
+      }
+    }
+  } else {
+    alertErrors.push("DISCORD_WEBHOOK_URL is not configured");
+  }
+
   return {
-    ok: errors.length === 0,
+    ok: errors.length === 0 && alertErrors.length === 0,
     rules: rules.length,
     pricesFetched,
     observationsSaved,
-    errors
+    alertsSent,
+    errors: [...errors, ...alertErrors]
   };
 }
 
