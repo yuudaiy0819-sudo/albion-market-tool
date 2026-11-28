@@ -748,7 +748,8 @@ monitorPollButton.addEventListener("click", async () => {
   try {
     const result = await monitorRequest("/admin/poll-now", { method: "POST" });
     monitorMessage.textContent = "取得完了：監視ルール " + result.rules
-      + "件 · API価格 " + result.pricesFetched + "件 · DB保存 " + result.observationsSaved + "件";
+      + "件 · API価格 " + result.pricesFetched + "件 · DB保存 " + result.observationsSaved
+      + "件 · 通知 " + (result.alertsSent ?? 0) + "件";
     if (result.errors && result.errors.length) {
       monitorMessage.textContent += " · " + result.errors.join(" / ");
     }
