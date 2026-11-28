@@ -176,6 +176,154 @@ let catalog = [];
 let selectedItem = null;
 let catalogPromise = null;
 
+
+const OPEN_ALBION_BASE = "https://api.openalbion.com/api/v3";
+let openAlbionCatalogPromise = null;
+let openAlbionCatalog = [];
+let itemDetailRequestId = 0;
+
+async function loadOpenAlbionCatalog() {
+  if (!openAlbionCatalogPromise) {
+    const endpoints = ["weapons", "armors", "accessories", "consumables"];
+    openAlbionCatalogPromise = Promise.all(endpoints.map(async (endpoint) => {
+      const response = await fetch(OPEN_ALBION_BASE + "/" + endpoint);
+      if (!response.ok) throw new Error("OpenAlbion " + endpoint + " API: HTTP " + response.status);
+      const payload = await response.json();
+      return Array.isArray(payload.data) ? payload.data : [];
+    })).then(groups => groups.flat());
+  }
+  return openAlbionCatalogPromise;
+}
+
+function detailField(label, value) {
+  if (value === undefined || value === null || value === "") return null;
+  const row = document.createElement("div");
+  row.className = "item-detail-field";
+  const term = document.createElement("span");
+  term.textContent = label;
+  const description = document.createElement("strong");
+  description.textContent = String(value);
+  row.append(term, description);
+  return row;
+}
+
+async function renderItemDetails() {
+  const panel = document.querySelector("#item-detail-panel");
+  const content = document.querySelector("#item-detail-content");
+  const status = document.querySelector("#item-detail-status");
+  if (!panel || !content || !selectedItem) return;
+  const requestId = ++itemDetailRequestId;
+  const identifier = selectedItemId().replace(/@\\d+$/, "");
+  panel.hidden = false;
+  content.replaceChildren();
+  status.textContent = "アイテム情報を取得しています…";
+  try {
+    const catalogItems = await loadOpenAlbionCatalog();
+    if (requestId !== itemDetailRequestId) return;
+    const detail = catalogItems.find(item => item.identifier === identifier);
+    if (!detail) {
+      status.textContent = "詳細データなし";
+      const note = document.createElement("p");
+      note.className = "item-detail-note";
+      note.textContent = "OpenAlbionで一致するアイテム情報が見つかりませんでした。価格比較など既存機能はそのまま利用できます。";
+      content.append(note);
+      return;
+    }
+
+    const grid = document.createElement("div");
+    grid.className = "item-detail-grid";
+    const fields = [
+      detailField("英語名", detail.name),
+      detailField("ティア", detail.tier),
+      detailField("アイテムパワー（基本値）", detail.item_power),
+      detailField("カテゴリー", detail.category?.name),
+      detailField("サブカテゴリー", detail.subcategory?.name)
+    ].filter(Boolean);
+    for (const field of fields) grid.append(field);
+    content.append(grid);
+
+    if (detail.info) {
+      const info = document.createElement("p");
+      info.className = "item-detail-info";
+      info.textContent = detail.info;
+      content.append(info);
+    }
+
+    if (detail.category?.type === "consumable") {
+      const recipeHeading = document.createElement("h4");
+      recipeHeading.className = "item-recipe-heading";
+      recipeHeading.textContent = "製作素材";
+      content.append(recipeHeading);
+      const recipeStatus = document.createElement("p");
+      recipeStatus.className = "item-detail-note";
+      recipeStatus.textContent = "製作レシピを取得しています…";
+      content.append(recipeStatus);
+      try {
+        const recipeResponse = await fetch(OPEN_ALBION_BASE + "/consumable-craftings/consumable/" + encodeURIComponent(detail.id));
+        if (!recipeResponse.ok) throw new Error("HTTP " + recipeResponse.status);
+        const recipePayload = await recipeResponse.json();
+        if (requestId !== itemDetailRequestId) return;
+        const enchantment = Number((selectedItemId().match(/@(\\d+)$/) || [,"0"])[1]);
+        const recipes = (Array.isArray(recipePayload.data) ? recipePayload.data : [])
+          .filter(entry => Number(entry.enchantment) === enchantment);
+        recipeStatus.remove();
+        if (!recipes.length) {
+          const missing = document.createElement("p");
+          missing.className = "item-detail-note";
+          missing.textContent = "このエンチャントの製作素材データは見つかりませんでした。";
+          content.append(missing);
+        } else {
+          for (const recipe of recipes) {
+            const output = document.createElement("p");
+            output.className = "item-detail-note";
+            output.textContent = "1回の製作で " + Number(recipe.crafting?.per_craft || 1).toLocaleString("ja-JP") + " 個";
+            content.append(output);
+            const list = document.createElement("div");
+            list.className = "item-recipe-list";
+            for (const ingredient of recipe.crafting?.requirements || []) {
+              const row = document.createElement("div");
+              row.className = "item-recipe-row";
+              const image = document.createElement("img");
+              image.src = ingredient.icon || ("https://render.albiononline.com/v1/item/" + encodeURIComponent(ingredient.identifier || "") + ".png");
+              image.alt = "";
+              image.loading = "lazy";
+              image.onerror = () => { image.hidden = true; };
+              const name = document.createElement("span");
+              name.textContent = ingredient.name || ingredient.identifier || "素材";
+              const quantity = document.createElement("strong");
+              quantity.textContent = Number(ingredient.value || 0).toLocaleString("ja-JP") + " 個";
+              row.append(image, name, quantity);
+              list.append(row);
+            }
+            content.append(list);
+          }
+        }
+      } catch (error) {
+        recipeStatus.textContent = "製作レシピを取得できませんでした。時間をおいて再度お試しください。";
+      }
+    } else {
+      const note = document.createElement("p");
+      note.className = "item-detail-note";
+      note.textContent = "製作素材データは現在、OpenAlbionの公開APIで食品・ポーションのみ表示しています。武器・防具などのレシピ対応は今後の拡張候補です。";
+      content.append(note);
+    }
+    const source = document.createElement("p");
+    source.className = "item-detail-source";
+    source.textContent = "データ提供：OpenAlbion（コミュニティデータ）。ゲーム内の最新変更と差異がある場合があります。";
+    content.append(source);
+    status.textContent = "詳細情報を表示中";
+  } catch (error) {
+    if (requestId !== itemDetailRequestId) return;
+    status.textContent = "取得できませんでした";
+    const note = document.createElement("p");
+    note.className = "item-detail-note";
+    note.textContent = "アイテム詳細APIに接続できませんでした。価格・履歴・注文板の既存機能には影響しません。";
+    content.append(note);
+  }
+}
+
+
+
 function flattenItems(value, output = []) {
   if (Array.isArray(value)) {
     for (const entry of value) flattenItems(entry, output);
@@ -230,6 +378,7 @@ function showResults(items) {
       loadPrices();
       loadHistory();
       loadOrderbook();
+      renderItemDetails();
     });
     results.append(button);
   }
