@@ -76,3 +76,13 @@ AODP's public Asia NATS feed can provide deduplicated market-order and market-hi
 ## Historical alert context
 
 Spread alerts compare the current purchase-side sell price and destination-side buy price with the median of distinct AODP source timestamps observed during the previous 24 hours. Repeated Worker polls of an unchanged source timestamp count only once, and the current source timestamp is excluded from its own baseline. At least three distinct historical timestamps are required on both sides before the alert can show a consistency label; otherwise it reports insufficient evidence. This is a price-history consistency check only, not a guarantee of executable quantity, completed trades, or profit.
+
+
+## Asia market feed collector pilot
+
+- The standalone Node.js collector lives in `../collector` and subscribes to AODP Asia `marketorders.deduped` and `markethistories.deduped`.
+- It forwards validated messages to `POST /internal/market-feed/batch`.
+- The endpoint requires a separate `MARKET_INGEST_TOKEN` secret and the D1 migration `0002_market_feed_events.sql`.
+- The collector host must receive `INGEST_URL` and `INGEST_TOKEN` as environment variables. Never put the token in frontend code or Git.
+- This is a pilot ingestion path. It does not yet create a complete trade ledger or a fully materialized active-order book. The collector currently retries in memory; durable disk spooling and production monitoring are follow-up hardening tasks.
+- Do not run the collector against production until the migration is applied, the secret is configured, and a small test batch has been verified.
