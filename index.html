@@ -7,7 +7,7 @@
   <meta name="description" content="Albion Online Asia マーケット価格比較ツール">
   <title>Albion Market Tool</title>
   <link rel="stylesheet" href="./styles.css">
-  <script src="./app.js?v=spreadtest1" defer></script>
+  <script src="./app.js?v=alerthistory1" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -197,6 +197,24 @@
       </div>
       <p id="monitor-message" class="helper" aria-live="polite">最初に管理トークンで接続してください。監視ルールを登録すると、Workerが15分ごとに価格を収集します。</p>
       <div id="monitor-rules" class="monitor-rules" aria-live="polite"></div>
+      <div class="alert-history-section">
+        <div class="alert-history-heading">
+          <div>
+            <p class="eyebrow">NOTIFICATION LOG</p>
+            <h3>価格アラート履歴</h3>
+          </div>
+          <div class="alert-history-controls">
+            <select id="alert-history-filter" aria-label="通知の種類">
+              <option value="all">すべて</option>
+              <option value="spread">価格差アラート</option>
+              <option value="buy_price_drop">購入価格の下落</option>
+            </select>
+            <button id="alert-history-refresh" type="button" class="secondary-button" disabled>履歴を更新</button>
+          </div>
+        </div>
+        <p id="alert-history-message" class="helper">接続すると、過去の通知を新しい順に表示します（最大100件）。</p>
+        <div id="alert-history-list" class="alert-history-list" aria-live="polite"></div>
+      </div>
     </section>
     <footer><span>Albion Market Tool</span><span>Community market data · Asia</span></footer>
   </main>
