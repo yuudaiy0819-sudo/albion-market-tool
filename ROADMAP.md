@@ -49,3 +49,17 @@ AODP data is community-contributed. The client uploads market data that players 
 - [x] AODP historical sell-order average chart (24h / 7d / 30d)
 - [ ] Long-term local history storage and charts
 - [ ] Notifications
+
+
+## Cloudflare backend foundation (2026-11-28)
+
+- [x] Add Cloudflare Worker configuration with a 15-minute scheduled entry point
+- [x] Add Worker health endpoint
+- [x] Add D1 schema for city-pair watch rules, price observations, and alert events
+- [ ] Create Cloudflare resources and deploy the Worker
+- [ ] Implement scheduled AODP price polling for enabled watch rules
+- [ ] Calculate city-to-city spread and purchase-price drops using fresh observations only
+- [ ] Add notification delivery after the notification channel is selected
+- [ ] Connect the web app watch-list UI to the backend
+
+See [cloudflare/README.md](cloudflare/README.md) for setup instructions. The scheduled handler is currently a safe placeholder; automatic price monitoring and notifications are not active yet.
