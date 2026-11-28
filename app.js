@@ -1154,7 +1154,7 @@ async function refreshAlertHistory() {
       top.className = "alert-history-item-top";
       const kind = document.createElement("span");
       kind.className = "alert-history-kind";
-      kind.textContent = event.alert_type === "spread" ? "📈 価格差アラート" : "📉 購入価格の下落";
+      kind.textContent = event.alert_type === "spread" ? "📈 価格差アラート" : event.alert_type === "low_sell_stock" ? "📦 売却注文の在庫不足" : "📉 購入価格の下落";
       const date = document.createElement("time");
       date.textContent = formatAlertDate(event.created_at);
       top.append(kind, date);
@@ -1171,6 +1171,9 @@ async function refreshAlertHistory() {
         spread.className = "alert-history-spread";
         spread.textContent = "価格差 " + (event.spread == null ? "—" : Number(event.spread).toLocaleString("ja-JP") + " シルバー");
         card.append(top, title, detail, spread);
+      } else if (event.alert_type === "low_sell_stock") {
+        detail.textContent = "全都市監視 · " + (event.message || "").split("\\n").find(line => line.startsWith("都市："))?.replace("都市：", "") + " · 売却注文の在庫が過去7日平均の10%以下";
+        card.append(top, title, detail);
       } else {
         detail.textContent = (event.buy_city || "都市不明") + " · 購入価格 " + (event.buy_price == null ? "—" : Number(event.buy_price).toLocaleString("ja-JP") + " シルバー");
         card.append(top, title, detail);
