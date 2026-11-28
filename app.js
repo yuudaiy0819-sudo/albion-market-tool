@@ -406,10 +406,10 @@ function renderHistory(payload, range, timeScale) {
     for (const group of segments) {
       if (group.length > 1) {
         const d = group.map((point,index) => (index ? "L" : "M") + x(point.time).toFixed(1) + "," + y(point.price).toFixed(1)).join(" ");
-        make("path",{d,class:"history-line",stroke:color});
+        make("path",{d,class:"history-line",style:"stroke:" + color});
       }
       for (const point of group) {
-        const circle = make("circle",{cx:x(point.time),cy:y(point.price),r:3.5,class:"history-point",fill:color,stroke:"#fff"});
+        const circle = make("circle",{cx:x(point.time),cy:y(point.price),r:3.5,class:"history-point",style:"fill:" + color + ";stroke:#fff"});
         const title = document.createElementNS(svgNS,"title");
         title.textContent = new Date(point.time).toLocaleString("ja-JP") + " · " + Math.round(point.price).toLocaleString("en-US") + " s · 件数 " + (point.count || "不明");
         circle.append(title);
