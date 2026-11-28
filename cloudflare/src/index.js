@@ -196,6 +196,56 @@ async function getEnabledRules(db) {
   return result.results || [];
 }
 
+
+async function getPriceBaseline(db, itemId, city, quality, side) {
+  const column = side === "sell" ? "sell_price_min" : "buy_price_max";
+  const dateColumn = side === "sell" ? "sell_price_min_date" : "buy_price_max_date";
+  const result = await db.prepare(
+    `SELECT ${column} AS price, ${dateColumn} AS price_date
+     FROM price_observations
+     WHERE item_id = ? AND city = ? AND quality = ?
+       AND ${column} IS NOT NULL
+       AND observed_at >= datetime('now', '-24 hours')
+     ORDER BY observed_at DESC, id DESC
+     LIMIT 96`
+  ).bind(itemId, city, Number(quality)).all();
+
+  // Repeated polling of the same AODP timestamp must not inflate sample size.
+  const unique = new Map();
+  for (const row of result.results || []) {
+    const price = Number(row.price);
+    if (!row.price_date || !Number.isFinite(Date.parse(row.price_date)) ||
+        !Number.isFinite(price) || price <= 0) continue;
+    if (!unique.has(row.price_date)) unique.set(row.price_date, price);
+  }
+  const values = [...unique.values()].sort((a, b) => a - b);
+  if (!values.length) return { median: null, samples: 0 };
+  const middle = Math.floor(values.length / 2);
+  return {
+    median: values.length % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2,
+    samples: values.length
+  };
+}
+
+function assessPriceConfidence(currentBuy, currentSell, buyBaseline, sellBaseline) {
+  if (buyBaseline.samples < 3 || sellBaseline.samples < 3 ||
+      !buyBaseline.median || !sellBaseline.median) {
+    return {
+      label: "参考（過去データ不足）",
+      detail: "過去24時間の比較可能な観測が各側3件未満のため、信頼度は未確定です。"
+    };
+  }
+  const buyDeviation = (currentBuy / buyBaseline.median - 1) * 100;
+  const sellDeviation = (currentSell / sellBaseline.median - 1) * 100;
+  const maxDeviation = Math.max(Math.abs(buyDeviation), Math.abs(sellDeviation));
+  const label = maxDeviation <= 15 ? "高" : maxDeviation <= 30 ? "中" : "低・要確認";
+  const signed = value => (value > 0 ? "+" : "") + value.toFixed(1) + "%";
+  return {
+    label,
+    detail: `購入側中央値比 ${signed(buyDeviation)} / 売却側中央値比 ${signed(sellDeviation)}（各${buyBaseline.samples}件・${sellBaseline.samples}件）`
+  };
+}
+
 async function pollMarketData(env) {
   if (!env.DB) throw new Error("D1 database binding DB is missing");
 
@@ -394,6 +444,11 @@ async function pollMarketData(env) {
           const profitRate = buyPrice > 0 ? (netProfit / buyPrice) * 100 : 0;
 
           if (spread >= threshold && !(await isCoolingDown("spread"))) {
+            const [buyBaseline, sellBaseline] = await Promise.all([
+              getPriceBaseline(env.DB, rule.item_id, rule.buy_city, rule.quality, "sell"),
+              getPriceBaseline(env.DB, rule.item_id, rule.sell_city, rule.quality, "buy")
+            ]);
+            const confidence = assessPriceConfidence(buyPrice, sellPrice, buyBaseline, sellBaseline);
             const message =
               `📈 **Albion価格差アラート**\n` +
               `アイテム：${itemName}（${qualityLabel}）\n` +
@@ -402,6 +457,8 @@ async function pollMarketData(env) {
               `価格差：${spread.toLocaleString()}\n` +
               `販売税（${salesTaxRate}%）：-${salesTax.toLocaleString()}\n` +
               `**税引後利益：${netProfit.toLocaleString()} シルバー（${profitRate.toFixed(2)}%）**\n` +
+              `過去24時間との比較：信頼度 ${confidence.label}\\n` +
+              `${confidence.detail}\\n` +
               `※既存注文への即時購入・即時売却を想定。輸送コスト・価格変動は含みません。\n` +
               `（価格差の設定値：${threshold.toLocaleString()}以上）`;
             await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
