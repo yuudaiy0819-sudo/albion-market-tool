@@ -367,6 +367,30 @@ export default {
       }
     }
 
+    if (request.method === "GET" && url.pathname === "/admin/alert-events") {
+      const requestedLimit = Number(url.searchParams.get("limit") || 100);
+      const limit = Number.isInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 100;
+      const alertType = url.searchParams.get("type");
+      const allowedTypes = new Set(["spread", "buy_price_drop"]);
+      let query = `
+        SELECT e.id, e.watch_rule_id, e.alert_type, e.message,
+               e.buy_price, e.sell_price, e.spread,
+               e.source_observed_at, e.created_at, e.delivered_at,
+               w.item_name, w.item_id, w.quality, w.buy_city, w.sell_city
+        FROM alert_events e
+        LEFT JOIN watch_rules w ON w.id = e.watch_rule_id
+      `;
+      const bindings = [];
+      if (allowedTypes.has(alertType)) {
+        query += " WHERE e.alert_type = ?";
+        bindings.push(alertType);
+      }
+      query += " ORDER BY e.created_at DESC, e.id DESC LIMIT ?";
+      bindings.push(limit);
+      const result = await env.DB.prepare(query).bind(...bindings).all();
+      return json({ events: result.results || [] });
+    }
+
     if (request.method === "GET" && url.pathname === "/admin/watch-rules") {
       const rules = await env.DB.prepare(
         "SELECT * FROM watch_rules ORDER BY created_at DESC"
