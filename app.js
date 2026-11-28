@@ -572,6 +572,8 @@ updateFavoriteButton();
 // Cloudflare-hosted market monitor. The admin token stays in memory only.
 const MONITOR_API = "https://albion-market-tool.yuudai-y0819.workers.dev";
 let monitorAdminToken = "";
+const MONITOR_TOKEN_STORAGE_KEY = "albionMarketMonitorAdminToken";
+const monitorRememberInput = document.querySelector("#monitor-remember");
 const monitorTokenInput = document.querySelector("#monitor-token");
 const monitorConnectButton = document.querySelector("#monitor-connect");
 const monitorStatus = document.querySelector("#monitor-status");
@@ -680,6 +682,8 @@ monitorConnectButton.addEventListener("click", async () => {
     return;
   }
   monitorAdminToken = candidate;
+  if (monitorRememberInput.checked) localStorage.setItem(MONITOR_TOKEN_STORAGE_KEY, candidate);
+  else localStorage.removeItem(MONITOR_TOKEN_STORAGE_KEY);
   setMonitorConnected(false, "loading");
   monitorConnectButton.disabled = true;
   monitorMessage.textContent = "Workerに接続しています…";
@@ -690,6 +694,7 @@ monitorConnectButton.addEventListener("click", async () => {
     monitorMessage.textContent = "接続しました。監視ルールを登録できます。";
   } catch (error) {
     monitorAdminToken = "";
+    localStorage.removeItem(MONITOR_TOKEN_STORAGE_KEY);
     setMonitorConnected(false, "error");
     monitorMessage.textContent = error.message + "。トークンを確認してください。";
   } finally {
@@ -762,3 +767,19 @@ monitorPollButton.addEventListener("click", async () => {
 
 setMonitorConnected(false);
 updateMonitorItemDisplay();
+
+const rememberedMonitorToken = localStorage.getItem(MONITOR_TOKEN_STORAGE_KEY);
+if (rememberedMonitorToken) {
+  monitorRememberInput.checked = true;
+  monitorAdminToken = rememberedMonitorToken;
+  setMonitorConnected(false, "loading");
+  refreshMonitorRules().then(() => {
+    setMonitorConnected(true);
+    monitorMessage.textContent = "保存済みのログイン状態で接続しました。";
+  }).catch((error) => {
+    monitorAdminToken = "";
+    localStorage.removeItem(MONITOR_TOKEN_STORAGE_KEY);
+    setMonitorConnected(false, "error");
+    monitorMessage.textContent = error.message + "。再度管理トークンを入力してください。";
+  });
+}
