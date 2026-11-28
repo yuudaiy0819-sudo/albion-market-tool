@@ -610,13 +610,25 @@ async function monitorRequest(path, options = {}) {
   return payload;
 }
 
-function setMonitorConnected(connected) {
-  monitorStatus.textContent = connected ? "接続済み" : "未接続";
-  monitorStatus.className = "state " + (connected ? "fresh" : "unknown");
+function setMonitorConnected(connected, state = "idle") {
+  monitorStatus.textContent = connected ? "接続済み" : state === "loading" ? "接続中…" : state === "error" ? "接続失敗" : "未接続";
+  monitorStatus.className = "state " + (connected ? "fresh" : state === "error" ? "stale" : "unknown");
   monitorAddButton.disabled = !connected || !selectedItem;
   monitorRefreshButton.disabled = !connected;
   monitorPollButton.disabled = !connected;
-  monitorConnectButton.textContent = connected ? "接続済み" : "接続";
+  monitorConnectButton.classList.remove("is-loading", "is-connected", "is-error");
+  if (state === "loading") {
+    monitorConnectButton.textContent = "接続中…";
+    monitorConnectButton.classList.add("is-loading");
+  } else if (connected) {
+    monitorConnectButton.textContent = "接続済み";
+    monitorConnectButton.classList.add("is-connected");
+  } else if (state === "error") {
+    monitorConnectButton.textContent = "再接続";
+    monitorConnectButton.classList.add("is-error");
+  } else {
+    monitorConnectButton.textContent = "接続";
+  }
 }
 
 async function refreshMonitorRules() {
@@ -668,6 +680,7 @@ monitorConnectButton.addEventListener("click", async () => {
     return;
   }
   monitorAdminToken = candidate;
+  setMonitorConnected(false, "loading");
   monitorConnectButton.disabled = true;
   monitorMessage.textContent = "Workerに接続しています…";
   try {
@@ -677,7 +690,7 @@ monitorConnectButton.addEventListener("click", async () => {
     monitorMessage.textContent = "接続しました。監視ルールを登録できます。";
   } catch (error) {
     monitorAdminToken = "";
-    setMonitorConnected(false);
+    setMonitorConnected(false, "error");
     monitorMessage.textContent = error.message + "。トークンを確認してください。";
   } finally {
     monitorConnectButton.disabled = false;
