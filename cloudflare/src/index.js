@@ -247,6 +247,56 @@ function assessPriceConfidence(currentBuy, currentSell, buyBaseline, sellBaselin
   };
 }
 
+async function sendDailyHealthReport(env) {
+  if (!env.DISCORD_WEBHOOK_URL) {
+    console.error("Daily health report skipped: Discord webhook is not configured");
+    return { sent: false, reason: "discord_not_configured" };
+  }
+
+  const checkedAt = new Date().toISOString();
+  let databaseStatus = "正常";
+  let enabledRules = 0;
+  let observations24h = 0;
+  let alerts24h = 0;
+  let latestObservation = "記録なし";
+  let detail = "";
+
+  try {
+    const [rules, observations, alerts, latest] = await Promise.all([
+      env.DB.prepare("SELECT COUNT(*) AS count FROM watch_rules WHERE enabled = 1").first(),
+      env.DB.prepare("SELECT COUNT(*) AS count FROM price_observations WHERE datetime(observed_at) >= datetime('now', '-24 hours')").first(),
+      env.DB.prepare("SELECT COUNT(*) AS count FROM alert_events WHERE datetime(created_at) >= datetime('now', '-24 hours')").first(),
+      env.DB.prepare("SELECT MAX(observed_at) AS latest FROM price_observations").first()
+    ]);
+    enabledRules = Number(rules?.count || 0);
+    observations24h = Number(observations?.count || 0);
+    alerts24h = Number(alerts?.count || 0);
+    latestObservation = latest?.latest || "記録なし";
+    if (observations24h === 0 && enabledRules > 0) {
+      databaseStatus = "要確認";
+      detail = "監視ルールがあるのに、過去24時間の価格観測がありません。";
+    }
+  } catch (error) {
+    databaseStatus = "異常";
+    detail = "D1集計に失敗しました: " + error.message;
+  }
+
+  const status = databaseStatus === "正常" ? "✅" : "⚠️";
+  const message =
+    `🩺 **Albion Market Tool 日次ヘルスレポート**\\n` +
+    `判定：${status} ${databaseStatus}\\n` +
+    `確認時刻：${checkedAt}\\n` +
+    `有効な監視ルール：${enabledRules}件\\n` +
+    `過去24時間の価格観測：${observations24h}件\\n` +
+    `過去24時間の通知：${alerts24h}件\\n` +
+    `最終観測記録：${latestObservation}\\n` +
+    (detail ? `注意：${detail}\\n` : "") +
+    `Worker・DBの定期集計レポートです。価格観測件数はAODPの観測データであり、全市場データを保証するものではありません。`;
+
+  await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
+  return { sent: true, databaseStatus, enabledRules, observations24h, alerts24h };
+}
+
 async function pollMarketData(env) {
   if (!env.DB) throw new Error("D1 database binding DB is missing");
 
@@ -686,16 +736,41 @@ export default {
   },
 
   async scheduled(controller, env, ctx) {
-    ctx.waitUntil(
-      pollMarketData(env).then(result => {
+    ctx.waitUntil((async () => {
+      try {
+        if (controller.cron === "0 23 * * *") {
+          const report = await sendDailyHealthReport(env);
+          console.log("Albion daily health report completed", {
+            scheduledTime: controller.scheduledTime,
+            cron: controller.cron,
+            ...report
+          });
+          return;
+        }
+        const result = await pollMarketData(env);
         console.log("Albion market poll completed", {
           scheduledTime: controller.scheduledTime,
           cron: controller.cron,
           ...result
         });
-      }).catch(error => {
-        console.error("Albion market poll failed", error);
-      })
-    );
+      } catch (error) {
+        console.error("Albion scheduled task failed", {
+          scheduledTime: controller.scheduledTime,
+          cron: controller.cron,
+          error: error.message
+        });
+        if (controller.cron === "0 23 * * *" && env.DISCORD_WEBHOOK_URL) {
+          try {
+            await sendDiscord(
+              env.DISCORD_WEBHOOK_URL,
+              "⚠️ **Albion Market Tool 日次ヘルスレポート失敗**\\n" +
+              "日次チェック中にエラーが発生しました: " + error.message
+            );
+          } catch (notifyError) {
+            console.error("Daily health failure notification failed", notifyError);
+          }
+        }
+      }
+    })());
   }
 };
