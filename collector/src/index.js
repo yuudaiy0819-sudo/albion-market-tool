@@ -1,4 +1,6 @@
 import { connect, StringCodec } from "nats";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { normalizeMessage, SUBJECTS } from "./normalize.js";
 
 const NATS_SERVERS = process.env.NATS_SERVERS || "nats://public:thenewalbiondata@nats.albion-online-data.com:24222";
@@ -7,13 +9,20 @@ const INGEST_TOKEN = process.env.INGEST_TOKEN;
 const BATCH_SIZE = Number(process.env.BATCH_SIZE || 100);
 const FLUSH_INTERVAL_MS = Number(process.env.FLUSH_INTERVAL_MS || 1500);
 const MAX_QUEUE = Number(process.env.MAX_QUEUE || 20000);
+const SPOOL_FILE = process.env.SPOOL_FILE || "/data/queue.jsonl";
 const codec = StringCodec();
 
 if (!INGEST_URL || !INGEST_TOKEN) {
   throw new Error("INGEST_URL and INGEST_TOKEN must be configured");
 }
 
-let queue = [];
+const spoolDirectory = dirname(SPOOL_FILE);
+mkdirSync(spoolDirectory, { recursive: true });
+if (!existsSync(SPOOL_FILE)) writeFileSync(SPOOL_FILE, "");
+let queue = readFileSync(SPOOL_FILE, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+function persistQueue() {
+  writeFileSync(SPOOL_FILE, queue.map(event => JSON.stringify(event)).join("\n") + (queue.length ? "\n" : ""));
+}
 let inFlight = false;
 let accepted = 0;
 let rejected = 0;
@@ -59,6 +68,7 @@ async function flush() {
     while (queue.length > 0 && !stopping) {
       const batch = queue.splice(0, BATCH_SIZE);
       await forwardBatch(batch);
+      persistQueue();
       console.log("Batch forwarded", {
         batchSize: batch.length,
         forwarded,
@@ -100,9 +110,12 @@ async function main() {
         try {
           const payload = JSON.parse(codec.decode(message.data));
           const event = normalizeMessage(subject, payload);
-          if (queue.length >= MAX_QUEUE) {
-            throw new Error(`Queue capacity ${MAX_QUEUE} reached; refusing to silently drop data`);
+          while (queue.length >= MAX_QUEUE && !stopping) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
+          if (stopping) break;
+          // Persist before forwarding so restarts can resume the pending batch.
+          appendFileSync(SPOOL_FILE, JSON.stringify(event) + "\n");
           queue.push(event);
           accepted++;
           lastMessageAt = new Date().toISOString();
