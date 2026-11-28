@@ -65,6 +65,101 @@ function isFreshPriceDate(value) {
     timestamp <= Date.now() + 5 * 60 * 1000;
 }
 
+
+function orderbookOrders(record, keys) {
+  for (const key of keys) {
+    if (Array.isArray(record?.[key])) return record[key];
+  }
+  return null;
+}
+
+function orderAmount(order) {
+  const amount = Number(order?.amount ?? order?.quantity ?? order?.volume ?? order?.count);
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
+function historyTimestamp(value) {
+  if (typeof value === "number") {
+    if (value > 600000000000000000) return (value - 621355968000000000) / 10000;
+    if (value > 1000000000000) return value;
+    return value * 1000;
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+// One history + one order-book request per item/quality; reuse the result for all eight cities.
+async function fetchLowStockData(itemId, quality) {
+  const now = new Date();
+  const start = new Date(now.getTime() - 7 * 86400000);
+  const date = value => value.toISOString().slice(0, 10);
+  const historyUrl = new URL(`${AODP_BASE}/stats/history/${encodeURIComponent(itemId)}.json`);
+  historyUrl.searchParams.set("locations", [...ALLOWED_CITIES].join(","));
+  historyUrl.searchParams.set("qualities", String(quality));
+  historyUrl.searchParams.set("date", date(start));
+  historyUrl.searchParams.set("end_date", date(now));
+  historyUrl.searchParams.set("time-scale", "6");
+
+  const orderbookUrl = new URL(`${AODP_BASE}/stats/orderbook/${encodeURIComponent(itemId)}.json`);
+  orderbookUrl.searchParams.set("locations", [...ALLOWED_CITIES].join(","));
+  orderbookUrl.searchParams.set("qualities", String(quality));
+
+  const [historyResponse, orderbookResponse] = await Promise.all([
+    fetch(historyUrl.toString(), { headers: { accept: "application/json" } }),
+    fetch(orderbookUrl.toString(), { headers: { accept: "application/json" } })
+  ]);
+  if (!historyResponse.ok) throw new Error(`history HTTP ${historyResponse.status}`);
+  if (!orderbookResponse.ok) throw new Error(`orderbook HTTP ${orderbookResponse.status}`);
+
+  const historyPayload = await historyResponse.json();
+  const orderbookPayload = await orderbookResponse.json();
+  const historyRecords = Array.isArray(historyPayload) ? historyPayload :
+    (historyPayload?.data || historyPayload?.series || []);
+  const orderbookRecords = Array.isArray(orderbookPayload) ? orderbookPayload :
+    (orderbookPayload?.data || orderbookPayload?.orderbooks || orderbookPayload?.orderBooks || []);
+
+  const volumeByCity = new Map();
+  for (const record of historyRecords) {
+    const city = record.location || record.city || record.Location;
+    if (!ALLOWED_CITIES.has(city) || Number(record.quality ?? record.Quality ?? quality) !== Number(quality)) continue;
+    const points = Array.isArray(record.data) ? record.data : (record.Data || []);
+    let count = 0;
+    let known = 0;
+    for (const point of points) {
+      const timestamp = historyTimestamp(point.timestamp ?? point.Timestamp);
+      const raw = point.item_count ?? point.ItemCount;
+      const value = raw == null ? null : Number(raw);
+      if (timestamp === null || timestamp < start.getTime() || timestamp > now.getTime() + 3600000) continue;
+      if (value !== null && Number.isFinite(value) && value >= 0) {
+        count += value;
+        known++;
+      }
+    }
+    if (known > 0) volumeByCity.set(city, { averageDaily: count / 7, buckets: known });
+  }
+
+  const stockByCity = new Map();
+  for (const record of orderbookRecords) {
+    const city = record.location || record.city || record.Location;
+    if (!ALLOWED_CITIES.has(city) || Number(record.quality ?? record.Quality ?? quality) !== Number(quality)) continue;
+    const sellOrders = orderbookOrders(record, ["sell_orders", "sellOrders", "asks", "sell"]);
+    if (!sellOrders) continue; // Missing data is unknown, never zero stock.
+    const quantities = sellOrders.map(orderAmount).filter(value => value !== null);
+    if (quantities.length !== sellOrders.length) continue;
+    stockByCity.set(city, quantities.reduce((sum, value) => sum + value, 0));
+  }
+
+  const result = new Map();
+  for (const city of ALLOWED_CITIES) {
+    const volume = volumeByCity.get(city);
+    const stock = stockByCity.get(city);
+    if (volume && volume.buckets >= 2 && stock !== undefined) {
+      result.set(city, { averageDaily: volume.averageDaily, sellQuantity: stock, buckets: volume.buckets });
+    }
+  }
+  return result;
+}
+
 async function getEnabledRules(db) {
   const result = await db.prepare(
     "SELECT * FROM watch_rules WHERE enabled = 1 ORDER BY created_at ASC"
@@ -154,6 +249,18 @@ async function pollMarketData(env) {
 
   let alertsSent = 0;
   const alertErrors = [];
+  const lowStockCache = new Map();
+  for (const rule of rules) {
+    const key = `${rule.item_id}|${Number(rule.quality)}`;
+    if (!lowStockCache.has(key)) {
+      try {
+        lowStockCache.set(key, await fetchLowStockData(rule.item_id, Number(rule.quality)));
+      } catch (error) {
+        lowStockCache.set(key, null);
+        alertErrors.push(`Low-stock data ${key}: ${error.message}`);
+      }
+    }
+  }
 
   if (env.DISCORD_WEBHOOK_URL) {
     for (const rule of rules) {
@@ -198,6 +305,37 @@ async function pollMarketData(env) {
 
         const itemName = rule.item_name || rule.item_id;
         const qualityLabel = `品質 ${rule.quality}`;
+
+        // Check sell-order stock in every supported city. AODP item_count is an
+        // observed-volume indicator, not a complete record of completed trades.
+        const lowStockCities = lowStockCache.get(`${rule.item_id}|${Number(rule.quality)}`);
+        if (lowStockCities) {
+          for (const [city, stock] of lowStockCities.entries()) {
+            if (stock.averageDaily <= 0 || stock.sellQuantity > stock.averageDaily * 0.10) continue;
+            const recentCityAlert = await env.DB.prepare(
+              `SELECT COUNT(*) AS count FROM alert_events
+               WHERE watch_rule_id = ? AND alert_type = 'low_sell_stock'
+               AND message LIKE ? AND created_at >= datetime('now', '-60 minutes')`
+            ).bind(rule.id, `%都市：${city}%`).first();
+            if (Number(recentCityAlert?.count || 0) > 0) continue;
+
+            const message =
+              `📦 **Albion売却注文の在庫不足の可能性**\\n` +
+              `アイテム：${itemName}（${qualityLabel}）\\n` +
+              `都市：${city}\\n` +
+              `現在の売却注文数量：${Math.round(stock.sellQuantity).toLocaleString()} 個\\n` +
+              `過去7日間の1日平均数量目安：${Math.round(stock.averageDaily).toLocaleString()} 個\\n` +
+              `平均比：${(stock.sellQuantity / stock.averageDaily * 100).toFixed(1)}%（通知基準：10%以下）\\n` +
+              `※AODPの観測データによる参考値です。全取引・全注文を保証するものではありません。`;
+            await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
+            await env.DB.prepare(
+              `INSERT INTO alert_events
+                (watch_rule_id, alert_type, message, source_observed_at, delivered_at)
+               VALUES (?, 'low_sell_stock', ?, ?, ?)`
+            ).bind(rule.id, message, new Date().toISOString(), new Date().toISOString()).run();
+            alertsSent++;
+          }
+        }
 
         if (
           buyRow && sellRow &&
@@ -371,7 +509,7 @@ export default {
       const requestedLimit = Number(url.searchParams.get("limit") || 100);
       const limit = Number.isInteger(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 200) : 100;
       const alertType = url.searchParams.get("type");
-      const allowedTypes = new Set(["spread", "buy_price_drop"]);
+      const allowedTypes = new Set(["spread", "buy_price_drop", "low_sell_stock"]);
       let query = `
         SELECT e.id, e.watch_rule_id, e.alert_type, e.message,
                e.buy_price, e.sell_price, e.spread,
