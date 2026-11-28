@@ -232,14 +232,14 @@ function assessPriceConfidence(currentBuy, currentSell, buyBaseline, sellBaselin
   if (buyBaseline.samples < 3 || sellBaseline.samples < 3 ||
       !buyBaseline.median || !sellBaseline.median) {
     return {
-      label: "参考（過去データ不足）",
+      label: "判定材料不足",
       detail: "過去24時間の比較可能な観測が各側3件未満のため、信頼度は未確定です。"
     };
   }
   const buyDeviation = (currentBuy / buyBaseline.median - 1) * 100;
   const sellDeviation = (currentSell / sellBaseline.median - 1) * 100;
   const maxDeviation = Math.max(Math.abs(buyDeviation), Math.abs(sellDeviation));
-  const label = maxDeviation <= 15 ? "高" : maxDeviation <= 30 ? "中" : "低・要確認";
+  const label = maxDeviation <= 15 ? "良好" : maxDeviation <= 30 ? "やや乖離" : "大きく乖離・要確認";
   const signed = value => (value > 0 ? "+" : "") + value.toFixed(1) + "%";
   return {
     label,
@@ -458,9 +458,9 @@ async function pollMarketData(env) {
               `価格差：${spread.toLocaleString()}\n` +
               `販売税（${salesTaxRate}%）：-${salesTax.toLocaleString()}\n` +
               `**税引後利益：${netProfit.toLocaleString()} シルバー（${profitRate.toFixed(2)}%）**\n` +
-              `過去24時間との比較：信頼度 ${confidence.label}\n` +
+              `過去24時間の価格履歴との整合性：${confidence.label}\n` +
               `${confidence.detail}\n` +
-              `※既存注文への即時購入・即時売却を想定。輸送コスト・価格変動は含みません。\n` +
+              `※履歴との整合性は利益の確実性を示しません。既存注文への即時購入・即時売却を想定し、輸送コスト・価格変動は含みません。\n` +
               `（価格差の設定値：${threshold.toLocaleString()}以上）`;
             await sendDiscord(env.DISCORD_WEBHOOK_URL, message);
             await env.DB.prepare(
