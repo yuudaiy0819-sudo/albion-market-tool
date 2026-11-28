@@ -745,8 +745,11 @@ async function ingestMarketFeedBatch(request, env) {
           payload.LocationId === undefined || payload.LocationId === null ||
           !Number.isInteger(Number(payload.QualityLevel)) ||
           Number(payload.QualityLevel) < 1 || Number(payload.QualityLevel) > 5 ||
-          !Number.isFinite(Number(payload.UnitPriceSilver)) ||
-          !Number.isFinite(Number(payload.Amount))) {
+          !Number.isSafeInteger(Number(payload.UnitPriceSilver)) || Number(payload.UnitPriceSilver) < 0 ||
+          !Number.isSafeInteger(Number(payload.Amount)) || Number(payload.Amount) < 0 ||
+          !Number.isInteger(Number(payload.EnchantmentLevel ?? 0)) ||
+          Number(payload.EnchantmentLevel ?? 0) < 0 || Number(payload.EnchantmentLevel ?? 0) > 4 ||
+          !Number.isInteger(Number(payload.Id)) || Number(payload.Id) < 0) {
         return json({ error: "Invalid market order payload" }, 400);
       }
       itemId = payload.ItemTypeId.slice(0, 100);
@@ -764,6 +767,7 @@ async function ingestMarketFeedBatch(request, env) {
           !Number.isInteger(Number(payload.AlbionId)) ||
           !Number.isInteger(Number(payload.QualityLevel)) ||
           Number(payload.QualityLevel) < 1 || Number(payload.QualityLevel) > 5 ||
+          !Number.isInteger(Number(payload.Timescale)) || Number(payload.Timescale) < 0 || Number(payload.Timescale) > 2 ||
           !Array.isArray(points) || points.length > 10000) {
         return json({ error: "Invalid market history payload" }, 400);
       }
