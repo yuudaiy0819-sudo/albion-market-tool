@@ -801,6 +801,36 @@ async function ingestMarketFeedBatch(request, env) {
   });
 }
 
+async function buildMarketFeedHealth(env) {
+  if (!env.DB) throw new Error("D1 database binding DB is missing");
+  const [summary, byType] = await Promise.all([
+    env.DB.prepare(
+      `SELECT COUNT(*) AS totalEvents,
+              SUM(CASE WHEN datetime(received_at) >= datetime('now', '-24 hours') THEN 1 ELSE 0 END) AS eventsLast24h,
+              MAX(received_at) AS latestReceivedAt,
+              MAX(collector_received_at) AS latestCollectorReceivedAt,
+              COUNT(DISTINCT location_id) AS observedLocationIds
+       FROM market_feed_events`
+    ).first(),
+    env.DB.prepare(
+      `SELECT event_type, COUNT(*) AS total,
+              SUM(CASE WHEN datetime(received_at) >= datetime('now', '-24 hours') THEN 1 ELSE 0 END) AS last24h
+       FROM market_feed_events GROUP BY event_type ORDER BY event_type`
+    ).all()
+  ]);
+  return {
+    ok: true,
+    checkedAt: new Date().toISOString(),
+    scope: "observed_aodp_asia_feed",
+    totalEvents: Number(summary?.totalEvents || 0),
+    eventsLast24h: Number(summary?.eventsLast24h || 0),
+    latestReceivedAt: summary?.latestReceivedAt || null,
+    latestCollectorReceivedAt: summary?.latestCollectorReceivedAt || null,
+    observedLocationIds: Number(summary?.observedLocationIds || 0),
+    byType: byType.results || []
+  };
+}
+
 async function buildPublicMarketHealth(env) {
   if (!env.DB) throw new Error("D1 database binding DB is missing");
 
@@ -919,6 +949,15 @@ export default {
       } catch (error) {
         console.error("Market feed ingestion failed", error);
         return json({ error: "Market feed ingestion failed" }, 500);
+      }
+    }
+
+    if (request.method === "GET" && url.pathname === "/market-feed-health") {
+      try {
+        return json(await buildMarketFeedHealth(env));
+      } catch (error) {
+        console.error("Market feed health check failed", error);
+        return json({ ok: false, error: "Market feed health check failed" }, 503);
       }
     }
 
