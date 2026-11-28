@@ -263,6 +263,7 @@ function showSelectedItem() {
   container.append(image, details);
   container.hidden = false;
   updateFavoriteButton();
+  updateMonitorItemDisplay();
 }
 
 function localDateString(date) {
@@ -567,3 +568,183 @@ for (const button of historyRangeButtons) {
 }
 renderFavorites();
 updateFavoriteButton();
+
+// Cloudflare-hosted market monitor. The admin token stays in memory only.
+const MONITOR_API = "https://albion-market-tool.yuudai-y0819.workers.dev";
+let monitorAdminToken = "";
+const monitorTokenInput = document.querySelector("#monitor-token");
+const monitorConnectButton = document.querySelector("#monitor-connect");
+const monitorStatus = document.querySelector("#monitor-status");
+const monitorMessage = document.querySelector("#monitor-message");
+const monitorAddButton = document.querySelector("#monitor-add-rule");
+const monitorRefreshButton = document.querySelector("#monitor-refresh");
+const monitorPollButton = document.querySelector("#monitor-poll-now");
+const monitorRulesContainer = document.querySelector("#monitor-rules");
+
+function updateMonitorItemDisplay() {
+  const name = document.querySelector("#monitor-item-name");
+  const id = document.querySelector("#monitor-item-id");
+  if (!name || !id) return;
+  if (!selectedItem) {
+    name.textContent = "上のアイテム検索から選択してください";
+    id.textContent = "";
+    monitorAddButton.disabled = !monitorAdminToken;
+    return;
+  }
+  name.textContent = japaneseName(selectedItem);
+  id.textContent = selectedItemId();
+  monitorAddButton.disabled = !monitorAdminToken;
+}
+
+async function monitorRequest(path, options = {}) {
+  const headers = {
+    "authorization": "Bearer " + monitorAdminToken,
+    ...(options.body ? { "content-type": "application/json" } : {}),
+    ...(options.headers || {})
+  };
+  const response = await fetch(MONITOR_API + path, { ...options, headers });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || "Worker API error (HTTP " + response.status + ")");
+  }
+  return payload;
+}
+
+function setMonitorConnected(connected) {
+  monitorStatus.textContent = connected ? "接続済み" : "未接続";
+  monitorStatus.className = "state " + (connected ? "fresh" : "unknown");
+  monitorAddButton.disabled = !connected || !selectedItem;
+  monitorRefreshButton.disabled = !connected;
+  monitorPollButton.disabled = !connected;
+  monitorConnectButton.textContent = connected ? "接続済み" : "接続";
+}
+
+async function refreshMonitorRules() {
+  const payload = await monitorRequest("/admin/watch-rules");
+  monitorRulesContainer.replaceChildren();
+  const rules = payload.rules || [];
+  if (!rules.length) {
+    const empty = document.createElement("p");
+    empty.className = "favorites-empty";
+    empty.textContent = "監視ルールはまだありません。アイテムを選んで登録してください。";
+    monitorRulesContainer.append(empty);
+    return;
+  }
+  for (const rule of rules) {
+    const row = document.createElement("div");
+    row.className = "monitor-rule";
+    const main = document.createElement("div");
+    main.className = "monitor-rule-main";
+    const title = document.createElement("strong");
+    title.textContent = (rule.item_name || rule.item_id) + " · 品質 " + rule.quality;
+    const details = document.createElement("span");
+    details.textContent = rule.buy_city + " → " + rule.sell_city
+      + " · 価格差の記録目安 " + Number(rule.min_spread || 0).toLocaleString("ja-JP") + " s";
+    main.append(title, details);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "削除";
+    remove.addEventListener("click", async () => {
+      if (!window.confirm("この監視ルールを削除しますか？")) return;
+      remove.disabled = true;
+      try {
+        await monitorRequest("/admin/watch-rules/" + encodeURIComponent(rule.id), { method: "DELETE" });
+        await refreshMonitorRules();
+        monitorMessage.textContent = "監視ルールを削除しました。";
+      } catch (error) {
+        monitorMessage.textContent = error.message;
+        remove.disabled = false;
+      }
+    });
+    row.append(main, remove);
+    monitorRulesContainer.append(row);
+  }
+}
+
+monitorConnectButton.addEventListener("click", async () => {
+  const candidate = monitorTokenInput.value.trim();
+  if (!candidate) {
+    monitorMessage.textContent = "管理トークンを入力してください。";
+    return;
+  }
+  monitorAdminToken = candidate;
+  monitorConnectButton.disabled = true;
+  monitorMessage.textContent = "Workerに接続しています…";
+  try {
+    await refreshMonitorRules();
+    monitorTokenInput.value = "";
+    setMonitorConnected(true);
+    monitorMessage.textContent = "接続しました。監視ルールを登録できます。";
+  } catch (error) {
+    monitorAdminToken = "";
+    setMonitorConnected(false);
+    monitorMessage.textContent = error.message + "。トークンを確認してください。";
+  } finally {
+    monitorConnectButton.disabled = false;
+  }
+});
+
+monitorAddButton.addEventListener("click", async () => {
+  if (!selectedItem) {
+    monitorMessage.textContent = "先に上の検索欄からアイテムを選択してください。";
+    return;
+  }
+  const buyCity = document.querySelector("#monitor-buy-city").value;
+  const sellCity = document.querySelector("#monitor-sell-city").value;
+  if (buyCity === sellCity) {
+    monitorMessage.textContent = "仕入れ都市と売却都市は別々に選んでください。";
+    return;
+  }
+  const itemId = selectedItemId();
+  const body = {
+    item_id: itemId,
+    item_name: japaneseName(selectedItem),
+    quality: Number(document.querySelector("#monitor-quality").value),
+    buy_city: buyCity,
+    sell_city: sellCity,
+    min_spread: Number(document.querySelector("#monitor-min-spread").value || 0)
+  };
+  monitorAddButton.disabled = true;
+  monitorMessage.textContent = "監視ルールを登録しています…";
+  try {
+    await monitorRequest("/admin/watch-rules", { method: "POST", body: JSON.stringify(body) });
+    await refreshMonitorRules();
+    monitorMessage.textContent = japaneseName(selectedItem) + " の監視ルールを登録しました。";
+  } catch (error) {
+    monitorMessage.textContent = error.message;
+  } finally {
+    monitorAddButton.disabled = false;
+  }
+});
+
+monitorRefreshButton.addEventListener("click", async () => {
+  monitorRefreshButton.disabled = true;
+  try {
+    await refreshMonitorRules();
+    monitorMessage.textContent = "監視リストを更新しました。";
+  } catch (error) {
+    monitorMessage.textContent = error.message;
+  } finally {
+    monitorRefreshButton.disabled = false;
+  }
+});
+
+monitorPollButton.addEventListener("click", async () => {
+  monitorPollButton.disabled = true;
+  monitorMessage.textContent = "AODP Eastから価格を取得しています…";
+  try {
+    const result = await monitorRequest("/admin/poll-now", { method: "POST" });
+    monitorMessage.textContent = "取得完了：監視ルール " + result.rules
+      + "件 · API価格 " + result.pricesFetched + "件 · DB保存 " + result.observationsSaved + "件";
+    if (result.errors && result.errors.length) {
+      monitorMessage.textContent += " · " + result.errors.join(" / ");
+    }
+  } catch (error) {
+    monitorMessage.textContent = error.message;
+  } finally {
+    monitorPollButton.disabled = false;
+  }
+});
+
+setMonitorConnected(false);
+updateMonitorItemDisplay();
